@@ -1,0 +1,15 @@
+{
+	"name": "github-activity-dashboard",
+	"compatibility_date": "2025-01-01",
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"directory": ".svelte-kit/cloudflare",
+		"binding": "ASSETS"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "CACHE",
+			"id": "<KV_NAMESPACE_ID>"
+		}
+	]
+}

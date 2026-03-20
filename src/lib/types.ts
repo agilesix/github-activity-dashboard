@@ -1,0 +1,76 @@
+export const ACTIVITY_TYPES = [
+	'issues_opened',
+	'issues_closed',
+	'issue_comments',
+	'prs_opened',
+	'pr_reviews',
+	'prs_merged'
+] as const;
+
+export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+
+export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
+	issues_opened: 'Issues Opened',
+	issues_closed: 'Issues Closed',
+	issue_comments: 'Issue Comments',
+	prs_opened: 'PRs Opened',
+	pr_reviews: 'PR Reviews',
+	prs_merged: 'PRs Merged'
+};
+
+export interface QueryParams {
+	user: string;
+	repos: string[]; // "owner/repo" format
+	from: string; // ISO date string YYYY-MM-DD
+	to: string; // ISO date string YYYY-MM-DD
+	types: ActivityType[];
+	pat?: string; // optional GitHub PAT (session-only, never persisted)
+}
+
+export interface ActivityItem {
+	id: string;
+	type: ActivityType;
+	title: string;
+	repo: string; // "owner/repo"
+	date: string; // ISO date string
+	url: string; // link to GitHub
+	state?: string; // open, closed, merged, etc.
+	labels?: string[];
+	number?: number; // issue or PR number
+}
+
+export interface HeatmapEntry {
+	date: string; // YYYY-MM-DD
+	count: number;
+}
+
+export interface SummaryStats {
+	totalItems: number;
+	countsByType: Record<ActivityType, number>;
+	mostActiveRepo: string | null;
+	mostActiveDay: string | null; // YYYY-MM-DD
+}
+
+export interface DashboardData {
+	query: QueryParams;
+	items: ActivityItem[];
+	fetchedAt: string; // ISO timestamp
+}
+
+export interface GitHubRateLimitInfo {
+	remaining: number;
+	limit: number;
+	resetAt: string; // ISO timestamp
+}
+
+export interface FetchError {
+	type: 'rate_limit' | 'not_found' | 'unauthorized' | 'unknown';
+	message: string;
+	rateLimitInfo?: GitHubRateLimitInfo;
+}
+
+export interface FetchResult {
+	items: ActivityItem[];
+	errors: FetchError[];
+	rateLimitInfo?: GitHubRateLimitInfo;
+}
