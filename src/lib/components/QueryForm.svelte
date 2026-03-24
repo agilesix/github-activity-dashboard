@@ -60,7 +60,7 @@
 
 	<div class="field">
 		<label for="repos">Repositories</label>
-		<RepoInput bind:repos {username} />
+		<RepoInput bind:repos {username} {pat} />
 		<span class="hint">Type owner/repo and press Enter, or select from suggestions</span>
 	</div>
 

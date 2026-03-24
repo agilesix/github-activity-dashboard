@@ -2,24 +2,30 @@
 	interface Props {
 		repos: string[];
 		username: string;
+		pat?: string;
 	}
 
-	let { repos = $bindable([]), username }: Props = $props();
+	let { repos = $bindable([]), username, pat }: Props = $props();
 
 	let inputValue = $state('');
 	let suggestions = $state<string[]>([]);
 	let showSuggestions = $state(false);
 	let loading = $state(false);
 	let fetchedUser = $state('');
+	let fetchedPat = $state('');
 
 	async function loadSuggestions() {
-		if (!username || username === fetchedUser) return;
+		if (!username || (username === fetchedUser && (pat || '') === fetchedPat)) return;
 		loading = true;
 		try {
-			const res = await fetch(`/api/repos?username=${encodeURIComponent(username)}`);
+			const url = `/api/repos?username=${encodeURIComponent(username)}`;
+			const headers: Record<string, string> = {};
+			if (pat) headers['x-github-pat'] = pat;
+			const res = await fetch(url, { headers });
 			const data: { repos?: string[] } = await res.json();
 			suggestions = data.repos || [];
 			fetchedUser = username;
+			fetchedPat = pat || '';
 		} catch {
 			suggestions = [];
 		} finally {

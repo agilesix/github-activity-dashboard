@@ -1,8 +1,13 @@
 <script lang="ts">
-	import type { PageData } from './$types';
-	import type { ActivityType } from '$lib/types';
+	import type { ActivityType, DashboardData, FetchError, GitHubRateLimitInfo } from '$lib/types';
 	import { ACTIVITY_TYPE_LABELS } from '$lib/types';
-	import { buildHeatmapData, computeSummaryStats, formatRelativeTime } from '$lib/utils';
+	import {
+		buildHeatmapData,
+		computeSummaryStats,
+		encodeQueryParams,
+		formatRelativeTime,
+		parseQueryParams
+	} from '$lib/utils';
 	import ActivityHeatmap from '$lib/components/ActivityHeatmap.svelte';
 	import ActivityTabs from '$lib/components/ActivityTabs.svelte';
 	import ActivityList from '$lib/components/ActivityList.svelte';
@@ -11,7 +16,13 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 
-	let { data }: { data: PageData } = $props();
+	// State
+	let dashboard = $state<DashboardData | null>(null);
+	let fromCache = $state(false);
+	let errors = $state<FetchError[]>([]);
+	let rateLimitInfo = $state<GitHubRateLimitInfo | undefined>(undefined);
+	let loading = $state(true);
+	let loadError = $state<string | null>(null);
 
 	let activeTab = $state<'all' | ActivityType>('all');
 	let copyFeedback = $state(false);
@@ -19,17 +30,72 @@
 	let headerRef = $state<HTMLElement | null>(null);
 	let stickyVisible = $state(false);
 
+	// Parse query from URL
+	let queryParams = $derived(parseQueryParams(page.url.searchParams));
+
+	// Fetch data on mount and when URL changes
+	$effect(() => {
+		const params = queryParams;
+		if (!params) {
+			loadError = 'Missing or invalid query parameters.';
+			loading = false;
+			return;
+		}
+
+		loading = true;
+		loadError = null;
+		activeTab = 'all';
+
+		const queryString = encodeQueryParams(params);
+		const refresh = page.url.searchParams.get('refresh') === 'true';
+		let url = `/api/activity?${queryString}`;
+		if (refresh) url += '&refresh=true';
+
+		const headers: Record<string, string> = {};
+		const pat = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('github_pat') : null;
+		if (pat) headers['x-github-pat'] = pat;
+
+		fetch(url, { headers })
+			.then(
+				(res) =>
+					res.json() as Promise<{
+						dashboard?: DashboardData;
+						fromCache?: boolean;
+						errors?: FetchError[];
+						rateLimitInfo?: GitHubRateLimitInfo;
+						error?: string;
+					}>
+			)
+			.then((data) => {
+				if (data.error) {
+					loadError = data.error;
+				} else if (data.dashboard) {
+					dashboard = data.dashboard;
+					fromCache = data.fromCache ?? false;
+					errors = data.errors ?? [];
+					rateLimitInfo = data.rateLimitInfo;
+				}
+				loading = false;
+			})
+			.catch((err) => {
+				loadError = err?.message || 'Failed to fetch activity data.';
+				loading = false;
+			});
+	});
+
 	let filteredItems = $derived(
-		activeTab === 'all'
-			? data.dashboard.items
-			: data.dashboard.items.filter((i) => i.type === activeTab)
+		!dashboard
+			? []
+			: activeTab === 'all'
+				? dashboard.items
+				: dashboard.items.filter((i) => i.type === activeTab)
 	);
 
 	let heatmapEntries = $derived(
-		buildHeatmapData(filteredItems, data.dashboard.query.from, data.dashboard.query.to)
+		dashboard ? buildHeatmapData(filteredItems, dashboard.query.from, dashboard.query.to) : []
 	);
 
-	let stats = $derived(computeSummaryStats(data.dashboard.items));
+	let stats = $derived(dashboard ? computeSummaryStats(dashboard.items) : null);
 
 	let activeTabLabel = $derived(
 		activeTab === 'all' ? 'All Activity' : ACTIVITY_TYPE_LABELS[activeTab]
@@ -39,7 +105,7 @@
 		menuOpen = false;
 		const url = new URL(page.url);
 		url.searchParams.set('refresh', 'true');
-		goto(resolve('/results') + '?' + url.searchParams.toString(), { invalidateAll: true });
+		goto(resolve('/results') + '?' + url.searchParams.toString());
 	}
 
 	async function handleCopyLink() {
@@ -71,120 +137,210 @@
 
 <svelte:window onclick={() => (menuOpen = false)} />
 
-<div class="sticky-header" class:visible={stickyVisible}>
-	<div class="sticky-inner">
-		<div class="sticky-summary">
-			<div class="sticky-user">{data.dashboard.query.user}</div>
-			<div class="sticky-detail">
-				{data.dashboard.query.repos.length} repo{data.dashboard.query.repos.length > 1 ? 's' : ''}
-				&middot;
-				{data.dashboard.query.from} &ndash; {data.dashboard.query.to}
-			</div>
-			<div class="sticky-tab">{activeTabLabel}</div>
-		</div>
-		<div class="sticky-actions-desktop">
-			<button class="btn btn-secondary btn-sm" onclick={handleRefresh}>Refresh</button>
-			<button class="btn btn-secondary btn-sm" onclick={handleCopyLink}>
-				{copyFeedback ? 'Copied!' : 'Copy Link'}
-			</button>
-			<a href={resolve('/')} class="btn btn-secondary btn-sm">New Query</a>
-		</div>
-		<div class="menu-container">
-			<button
-				id="sticky-actions-menu-trigger"
-				class="menu-trigger"
-				type="button"
-				aria-label="Actions menu"
-				aria-haspopup="menu"
-				aria-expanded={menuOpen}
-				aria-controls="sticky-actions-menu"
-				onclick={(e) => {
-					e.stopPropagation();
-					menuOpen = !menuOpen;
-				}}
-			>
-				&#8942;
-			</button>
-			{#if menuOpen}
-				<div
-					id="sticky-actions-menu"
-					class="menu-dropdown"
-					role="menu"
-					aria-labelledby="sticky-actions-menu-trigger"
-				>
-					<button class="menu-item" type="button" role="menuitem" onclick={handleRefresh}>
-						Refresh data
-					</button>
-					<button class="menu-item" type="button" role="menuitem" onclick={handleCopyLink}>
-						{copyFeedback ? 'Copied!' : 'Copy link'}
-					</button>
-					<a href={resolve('/')} class="menu-item" role="menuitem" onclick={handleNewQuery}>
-						New query
-					</a>
-				</div>
-			{/if}
-		</div>
-	</div>
-</div>
-
-<main class="results-page">
-	<header class="results-header" bind:this={headerRef}>
-		<div class="header-top">
-			<div>
-				<h1>{data.dashboard.query.user}</h1>
-				<p class="subtitle">
-					{data.dashboard.query.repos.length} repo{data.dashboard.query.repos.length > 1 ? 's' : ''}
-					&middot;
-					{data.dashboard.query.from} to {data.dashboard.query.to}
+{#if loading}
+	<main class="loading-page">
+		<div class="loading-content">
+			<div class="spinner"></div>
+			<h2>Fetching activity data...</h2>
+			{#if queryParams}
+				<p class="loading-detail">
+					{queryParams.user} &middot; {queryParams.repos.length} repo{queryParams.repos.length > 1
+						? 's'
+						: ''}
+					&middot; {queryParams.from} to {queryParams.to}
 				</p>
+			{/if}
+			<p class="loading-hint">
+				This may take a moment depending on the number of repos and activity.
+			</p>
+		</div>
+	</main>
+{:else if loadError}
+	<main class="error-page">
+		<h1>Something went wrong</h1>
+		<p>{loadError}</p>
+		<a href={resolve('/')}>Back to search</a>
+	</main>
+{:else if dashboard && stats}
+	<div class="sticky-header" class:visible={stickyVisible}>
+		<div class="sticky-inner">
+			<div class="sticky-summary">
+				<div class="sticky-user">{dashboard.query.user}</div>
+				<div class="sticky-detail">
+					{dashboard.query.repos.length} repo{dashboard.query.repos.length > 1 ? 's' : ''}
+					&middot;
+					{dashboard.query.from} &ndash; {dashboard.query.to}
+				</div>
+				<div class="sticky-tab">{activeTabLabel}</div>
 			</div>
-			<div class="header-actions">
-				<button class="btn btn-secondary" onclick={handleRefresh}>Refresh</button>
-				<button class="btn btn-secondary" onclick={handleCopyLink}>
+			<div class="sticky-actions-desktop">
+				<button class="btn btn-secondary btn-sm" onclick={handleRefresh}>Refresh</button>
+				<button class="btn btn-secondary btn-sm" onclick={handleCopyLink}>
 					{copyFeedback ? 'Copied!' : 'Copy Link'}
 				</button>
-				<a href={resolve('/')} class="btn btn-secondary">New Query</a>
+				<a href={resolve('/')} class="btn btn-secondary btn-sm">New Query</a>
+			</div>
+			<div class="menu-container">
+				<button
+					id="sticky-actions-menu-trigger"
+					class="menu-trigger"
+					type="button"
+					aria-label="Actions menu"
+					aria-haspopup="menu"
+					aria-expanded={menuOpen}
+					aria-controls="sticky-actions-menu"
+					onclick={(e) => {
+						e.stopPropagation();
+						menuOpen = !menuOpen;
+					}}
+				>
+					&#8942;
+				</button>
+				{#if menuOpen}
+					<div
+						id="sticky-actions-menu"
+						class="menu-dropdown"
+						role="menu"
+						aria-labelledby="sticky-actions-menu-trigger"
+					>
+						<button class="menu-item" type="button" role="menuitem" onclick={handleRefresh}>
+							Refresh data
+						</button>
+						<button class="menu-item" type="button" role="menuitem" onclick={handleCopyLink}>
+							{copyFeedback ? 'Copied!' : 'Copy link'}
+						</button>
+						<a href={resolve('/')} class="menu-item" role="menuitem" onclick={handleNewQuery}>
+							New query
+						</a>
+					</div>
+				{/if}
 			</div>
 		</div>
+	</div>
 
-		<div class="fetch-info">
-			{#if data.fromCache}
-				Cached data from {formatRelativeTime(data.dashboard.fetchedAt)}
-			{:else}
-				Fetched {formatRelativeTime(data.dashboard.fetchedAt)}
-			{/if}
-			{#if data.rateLimitInfo}
-				&middot; API: {data.rateLimitInfo.remaining}/{data.rateLimitInfo.limit} remaining
-			{/if}
-		</div>
-
-		{#if data.errors && data.errors.length > 0}
-			<div class="warnings">
-				{#each data.errors as error, i (i)}
-					<p class="warning">{error.message}</p>
-				{/each}
+	<main class="results-page">
+		<header class="results-header" bind:this={headerRef}>
+			<div class="header-top">
+				<div>
+					<h1>{dashboard.query.user}</h1>
+					<p class="subtitle">
+						{dashboard.query.repos.length} repo{dashboard.query.repos.length > 1 ? 's' : ''}
+						&middot;
+						{dashboard.query.from} to {dashboard.query.to}
+					</p>
+				</div>
+				<div class="header-actions">
+					<button class="btn btn-secondary" onclick={handleRefresh}>Refresh</button>
+					<button class="btn btn-secondary" onclick={handleCopyLink}>
+						{copyFeedback ? 'Copied!' : 'Copy Link'}
+					</button>
+					<a href={resolve('/')} class="btn btn-secondary">New Query</a>
+				</div>
 			</div>
-		{/if}
-	</header>
 
-	<SummaryStats {stats} />
+			<div class="fetch-info">
+				{#if fromCache}
+					Cached data from {formatRelativeTime(dashboard.fetchedAt)}
+				{:else}
+					Fetched {formatRelativeTime(dashboard.fetchedAt)}
+				{/if}
+				{#if rateLimitInfo}
+					&middot; API: {rateLimitInfo.remaining}/{rateLimitInfo.limit} remaining
+				{/if}
+			</div>
 
-	<section class="activity-section">
-		<ActivityTabs
-			{activeTab}
-			countsByType={stats.countsByType}
-			totalCount={stats.totalItems}
-			onchange={(tab) => (activeTab = tab)}
-		/>
+			{#if errors.length > 0}
+				<div class="warnings">
+					{#each errors as error, i (i)}
+						<p class="warning">{error.message}</p>
+					{/each}
+				</div>
+			{/if}
+		</header>
 
-		<ActivityHeatmap entries={heatmapEntries} />
+		<SummaryStats {stats} />
 
-		<ActivityList items={filteredItems} repos={data.dashboard.query.repos} />
-	</section>
-</main>
+		<section class="activity-section">
+			<ActivityTabs
+				{activeTab}
+				countsByType={stats.countsByType}
+				totalCount={stats.totalItems}
+				onchange={(tab) => (activeTab = tab)}
+			/>
+
+			<ActivityHeatmap entries={heatmapEntries} />
+
+			<ActivityList items={filteredItems} repos={dashboard.query.repos} />
+		</section>
+	</main>
+{/if}
 
 <style>
-	/* Sticky header — hidden until main header scrolls out */
+	/* Loading page */
+	.loading-page {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 60vh;
+		padding: 20px;
+	}
+
+	.loading-content {
+		text-align: center;
+		max-width: 400px;
+	}
+
+	.spinner {
+		width: 32px;
+		height: 32px;
+		border: 3px solid var(--color-border);
+		border-top-color: var(--color-link);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+		margin: 0 auto 16px;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	.loading-content h2 {
+		font-size: 18px;
+		margin-bottom: 8px;
+	}
+
+	.loading-detail {
+		font-size: 14px;
+		color: var(--color-text-secondary);
+		margin-bottom: 8px;
+	}
+
+	.loading-hint {
+		font-size: 12px;
+		color: var(--color-text-secondary);
+	}
+
+	/* Error page */
+	.error-page {
+		max-width: 480px;
+		margin: 0 auto;
+		padding: 80px 20px;
+		text-align: center;
+	}
+
+	.error-page h1 {
+		font-size: 22px;
+		margin-bottom: 8px;
+	}
+
+	.error-page p {
+		color: var(--color-text-secondary);
+		margin-bottom: 24px;
+	}
+
+	/* Sticky header */
 	.sticky-header {
 		position: fixed;
 		top: 0;

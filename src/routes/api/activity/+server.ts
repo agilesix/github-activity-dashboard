@@ -1,7 +1,7 @@
-import type { PageServerLoad } from './$types';
-import { error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { env } from '$env/dynamic/private';
+import type { RequestHandler } from './$types';
 import { parseQueryParams, validateQueryParams } from '$lib/utils';
 import { readCache, writeCache } from '$lib/server/cache';
 import { fetchGitHubActivity } from '$lib/server/github';
@@ -10,21 +10,30 @@ import type { DashboardData } from '$lib/types';
 
 const useMockData = () => env.USE_MOCK_DATA === 'true' || (dev && env.USE_MOCK_DATA !== 'false');
 
-export const load: PageServerLoad = async ({ url, platform }) => {
+export const GET: RequestHandler = async ({ url, request, platform }) => {
 	const params = parseQueryParams(url.searchParams);
 	if (!params) {
-		error(400, 'Missing or invalid query parameters. Required: user, repos, from, to.');
+		return json(
+			{ error: 'Missing or invalid query parameters. Required: user, repos, from, to.' },
+			{ status: 400 }
+		);
 	}
 
 	const validationErrors = validateQueryParams(params);
 	if (validationErrors.length > 0) {
-		error(400, validationErrors.join(' '));
+		return json({ error: validationErrors.join(' ') }, { status: 400 });
 	}
 
-	// Use mock data in dev mode (override with USE_MOCK_DATA=false to use real API)
+	// Attach PAT from header (never in URL)
+	const pat = request.headers.get('x-github-pat') || undefined;
+	if (pat) {
+		params.pat = pat;
+	}
+
+	// Use mock data in dev mode
 	if (useMockData()) {
 		const dashboard = generateMockData(params);
-		return { dashboard, fromCache: false, errors: [], rateLimitInfo: undefined };
+		return json({ dashboard, fromCache: false, errors: [], rateLimitInfo: undefined });
 	}
 
 	const refresh = url.searchParams.get('refresh') === 'true';
@@ -34,7 +43,7 @@ export const load: PageServerLoad = async ({ url, platform }) => {
 	if (!refresh) {
 		const cached = await readCache(kv, params);
 		if (cached) {
-			return { dashboard: cached, fromCache: true };
+			return json({ dashboard: cached, fromCache: true, errors: [], rateLimitInfo: undefined });
 		}
 	}
 
@@ -47,13 +56,13 @@ export const load: PageServerLoad = async ({ url, platform }) => {
 		fetchedAt: new Date().toISOString()
 	};
 
-	// Write to cache (non-blocking on Cloudflare, best-effort locally)
+	// Write to cache
 	await writeCache(kv, params, dashboard);
 
-	return {
+	return json({
 		dashboard,
 		fromCache: false,
 		errors: result.errors,
 		rateLimitInfo: result.rateLimitInfo
-	};
+	});
 };

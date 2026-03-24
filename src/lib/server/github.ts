@@ -24,7 +24,7 @@ function buildSearchQuery(
 			};
 		case 'issues_closed':
 			return {
-				q: `type:issue is:closed closed:${dateRange} ${repoQualifiers}`,
+				q: `assignee:${params.user} type:issue is:closed closed:${dateRange} ${repoQualifiers}`,
 				qualifiers: 'issues closed'
 			};
 		case 'issue_comments':
@@ -511,6 +511,12 @@ export async function fetchGitHubActivity(params: QueryParams): Promise<FetchRes
 
 /**
  * Fetch repos a user owns or is a member of.
+ *
+ * With a PAT: uses the authenticated endpoint (GET /user/repos) which includes
+ * private repos and org repos the token has access to. Paginates to get all results.
+ *
+ * Without a PAT: uses the public endpoint (GET /users/{username}/repos) which only
+ * returns publicly visible repos.
  */
 export async function fetchUserRepos(
 	username: string,
@@ -519,16 +525,39 @@ export async function fetchUserRepos(
 	const octokit = createOctokit(pat);
 
 	try {
-		const repos = await octokit.rest.repos.listForUser({
-			username,
-			type: 'all',
-			sort: 'updated',
-			per_page: 100
-		});
+		const allRepos: string[] = [];
 
-		return {
-			repos: repos.data.map((r) => r.full_name)
-		};
+		if (pat) {
+			// Authenticated: use /user/repos which returns all repos the user can access
+			const iterator = octokit.paginate.iterator(octokit.rest.repos.listForAuthenticatedUser, {
+				type: 'all',
+				sort: 'updated',
+				per_page: 100
+			});
+
+			for await (const response of iterator) {
+				for (const repo of response.data) {
+					allRepos.push(repo.full_name);
+				}
+			}
+		} else {
+			// Unauthenticated: use /users/{username}/repos (public repos only)
+			// Note: 'type' param on this endpoint only accepts 'owner' | 'member' | 'all'
+			// but 'all' requires authentication. Omit it to get public repos.
+			const iterator = octokit.paginate.iterator(octokit.rest.repos.listForUser, {
+				username,
+				sort: 'updated',
+				per_page: 100
+			});
+
+			for await (const response of iterator) {
+				for (const repo of response.data) {
+					allRepos.push(repo.full_name);
+				}
+			}
+		}
+
+		return { repos: allRepos };
 	} catch (err) {
 		const error = handleOctokitError(err, 'user repos');
 		return { repos: [], error: error.message };
