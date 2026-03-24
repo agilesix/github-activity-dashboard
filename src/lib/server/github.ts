@@ -507,7 +507,7 @@ export async function fetchGitHubActivity(params: QueryParams): Promise<FetchRes
 }
 
 /**
- * Fetch public repos for a user (for autocomplete).
+ * Fetch repos a user owns or is a member of.
  */
 export async function fetchUserRepos(
 	username: string,
@@ -518,7 +518,7 @@ export async function fetchUserRepos(
 	try {
 		const repos = await octokit.rest.repos.listForUser({
 			username,
-			type: 'owner',
+			type: 'all',
 			sort: 'updated',
 			per_page: 100
 		});
