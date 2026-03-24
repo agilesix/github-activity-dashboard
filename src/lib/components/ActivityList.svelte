@@ -98,12 +98,14 @@
 		return sections;
 	});
 
-	// Reset page when filters change
+	// Reset page and collapsed state when filters or items change
 	$effect(() => {
 		void searchQuery;
 		void selectedRepos;
 		void selectedLabels;
+		void items;
 		currentPage = 1;
+		collapsedSections = {};
 	});
 
 	// Multi-select toggle helpers
@@ -232,9 +234,21 @@
 					type="button"
 					aria-expanded={!collapsedSections[section.category]}
 				>
-					<span class="collapse-icon" class:collapsed={collapsedSections[section.category]}>
-						&#9662;
-					</span>
+					<svg
+						class="collapse-icon"
+						class:collapsed={collapsedSections[section.category]}
+						width="16"
+						height="16"
+						viewBox="0 0 16 16"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						aria-hidden="true"
+					>
+						<path d="M4 6 L8 10 L12 6" />
+					</svg>
 					<span class="category-icon">{getCategoryIcon(section.category)}</span>
 					{section.categoryLabel}
 					<span class="category-count">{section.items.length}</span>
@@ -315,15 +329,15 @@
 
 <style>
 	.list-container {
-		margin-top: 16px;
+		margin-top: 12px;
 	}
 
 	/* Toolbar */
 	.toolbar {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
-		margin-bottom: 16px;
+		gap: 20px;
+		margin-bottom: 20px;
 	}
 
 	.search-box input {
@@ -342,7 +356,7 @@
 	.filter-groups {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
+		gap: 12px;
 	}
 
 	.filter-group {
@@ -438,9 +452,10 @@
 	}
 
 	.collapse-icon {
-		font-size: 12px;
+		width: 18px;
+		height: 18px;
+		flex-shrink: 0;
 		transition: transform 0.15s ease;
-		display: inline-block;
 	}
 
 	.collapse-icon.collapsed {

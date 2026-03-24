@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { HeatmapEntry } from '$lib/types';
+	import { formatDisplayDate } from '$lib/utils';
 
 	interface Props {
 		entries: HeatmapEntry[];
@@ -14,6 +15,10 @@
 	const monthLabelHeight = 16;
 
 	const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+
+	// Tooltip state
+	let tooltip = $state<{ text: string; x: number; y: number } | null>(null);
+	let containerRef = $state<HTMLDivElement | null>(null);
 
 	function getColor(count: number, maxCount: number): string {
 		if (count === 0) return 'var(--heatmap-0)';
@@ -80,9 +85,25 @@
 
 	let svgWidth = $derived(dayLabelWidth + weeks.length * cellStep + cellGap);
 	let svgHeight = $derived(monthLabelHeight + 7 * cellStep + cellGap);
+
+	function showTooltip(entry: HeatmapEntry, event: MouseEvent) {
+		if (!containerRef) return;
+		const rect = containerRef.getBoundingClientRect();
+		const count = entry.count;
+		const label = count === 0 ? 'No activity' : `${count} activit${count === 1 ? 'y' : 'ies'}`;
+		tooltip = {
+			text: `${label} on ${formatDisplayDate(entry.date)}`,
+			x: event.clientX - rect.left,
+			y: event.clientY - rect.top - 8
+		};
+	}
+
+	function hideTooltip() {
+		tooltip = null;
+	}
 </script>
 
-<div class="heatmap-container">
+<div class="heatmap-container" bind:this={containerRef}>
 	<svg width={svgWidth} height={svgHeight}>
 		<!-- Month labels -->
 		{#each monthLabels as label (label.weekIndex)}
@@ -108,12 +129,20 @@
 					height={cellSize}
 					rx="2"
 					fill={getColor(day.entry.count, maxCount)}
-				>
-					<title>{day.entry.date}: {day.entry.count} activities</title>
-				</rect>
+					onmouseenter={(e) => showTooltip(day.entry, e)}
+					onmouseleave={hideTooltip}
+					role="img"
+					aria-label={`${day.entry.count} activit${day.entry.count === 1 ? 'y' : 'ies'} on ${formatDisplayDate(day.entry.date)}`}
+				/>
 			{/each}
 		{/each}
 	</svg>
+
+	{#if tooltip}
+		<div class="tooltip" style="left: {tooltip.x}px; top: {tooltip.y}px;">
+			{tooltip.text}
+		</div>
+	{/if}
 
 	<div class="legend">
 		<span class="legend-label">Less</span>
@@ -129,6 +158,7 @@
 <style>
 	.heatmap-container {
 		overflow-x: auto;
+		position: relative;
 	}
 
 	.label {
@@ -138,6 +168,23 @@
 
 	.day-label {
 		font-size: 9px;
+	}
+
+	rect {
+		cursor: pointer;
+	}
+
+	.tooltip {
+		position: absolute;
+		pointer-events: none;
+		transform: translate(-50%, -100%);
+		background: var(--color-text);
+		color: var(--color-bg);
+		font-size: 12px;
+		padding: 4px 8px;
+		border-radius: var(--radius-sm);
+		white-space: nowrap;
+		z-index: 10;
 	}
 
 	.legend {

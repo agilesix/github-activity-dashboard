@@ -8,8 +8,8 @@
 	import ActivityList from '$lib/components/ActivityList.svelte';
 	import SummaryStats from '$lib/components/SummaryStats.svelte';
 	import { goto } from '$app/navigation';
-	import { resolveRoute } from '$app/paths';
-	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 
 	let { data }: { data: PageData } = $props();
 
@@ -37,14 +37,14 @@
 
 	function handleRefresh() {
 		menuOpen = false;
-		const url = new URL($page.url);
+		const url = new URL(page.url);
 		url.searchParams.set('refresh', 'true');
-		goto(resolveRoute('/results') + '?' + url.searchParams.toString(), { invalidateAll: true });
+		goto(resolve('/results') + '?' + url.searchParams.toString(), { invalidateAll: true });
 	}
 
 	async function handleCopyLink() {
 		menuOpen = false;
-		const url = new URL($page.url);
+		const url = new URL(page.url);
 		url.searchParams.delete('refresh');
 		await navigator.clipboard.writeText(url.toString());
 		copyFeedback = true;
@@ -87,14 +87,17 @@
 			<button class="btn btn-secondary btn-sm" onclick={handleCopyLink}>
 				{copyFeedback ? 'Copied!' : 'Copy Link'}
 			</button>
-			<a href={resolveRoute('/')} class="btn btn-secondary btn-sm">New Query</a>
+			<a href={resolve('/')} class="btn btn-secondary btn-sm">New Query</a>
 		</div>
 		<div class="menu-container">
 			<button
+				id="sticky-actions-menu-trigger"
 				class="menu-trigger"
 				type="button"
 				aria-label="Actions menu"
+				aria-haspopup="menu"
 				aria-expanded={menuOpen}
+				aria-controls="sticky-actions-menu"
 				onclick={(e) => {
 					e.stopPropagation();
 					menuOpen = !menuOpen;
@@ -103,13 +106,21 @@
 				&#8942;
 			</button>
 			{#if menuOpen}
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-				<div class="menu-dropdown" onclick={(e) => e.stopPropagation()}>
-					<button class="menu-item" type="button" onclick={handleRefresh}>Refresh data</button>
-					<button class="menu-item" type="button" onclick={handleCopyLink}>
+				<div
+					id="sticky-actions-menu"
+					class="menu-dropdown"
+					role="menu"
+					aria-labelledby="sticky-actions-menu-trigger"
+				>
+					<button class="menu-item" type="button" role="menuitem" onclick={handleRefresh}>
+						Refresh data
+					</button>
+					<button class="menu-item" type="button" role="menuitem" onclick={handleCopyLink}>
 						{copyFeedback ? 'Copied!' : 'Copy link'}
 					</button>
-					<a href={resolveRoute('/')} class="menu-item" onclick={handleNewQuery}> New query </a>
+					<a href={resolve('/')} class="menu-item" role="menuitem" onclick={handleNewQuery}>
+						New query
+					</a>
 				</div>
 			{/if}
 		</div>
@@ -132,7 +143,7 @@
 				<button class="btn btn-secondary" onclick={handleCopyLink}>
 					{copyFeedback ? 'Copied!' : 'Copy Link'}
 				</button>
-				<a href={resolveRoute('/')} class="btn btn-secondary">New Query</a>
+				<a href={resolve('/')} class="btn btn-secondary">New Query</a>
 			</div>
 		</div>
 
@@ -175,8 +186,10 @@
 <style>
 	/* Sticky header — hidden until main header scrolls out */
 	.sticky-header {
-		position: sticky;
+		position: fixed;
 		top: 0;
+		left: 0;
+		right: 0;
 		z-index: 20;
 		background: var(--color-bg);
 		border-bottom: 1px solid var(--color-border);
@@ -338,6 +351,24 @@
 		gap: 8px;
 	}
 
+	@media (max-width: 640px) {
+		.results-page {
+			padding: 16px 16px;
+		}
+
+		h1 {
+			font-size: 18px;
+		}
+
+		.results-header {
+			margin-bottom: 16px;
+		}
+
+		.header-actions {
+			display: none;
+		}
+	}
+
 	.btn {
 		padding: 5px 12px;
 		border-radius: var(--radius-md);
@@ -379,5 +410,8 @@
 
 	.activity-section {
 		margin-top: 24px;
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
 	}
 </style>
