@@ -127,14 +127,16 @@ function generateState(type: string): string {
 			return Math.random() > 0.3 ? 'open' : 'closed';
 		case 'issues_closed':
 			return 'closed';
+		case 'issue_comments':
+			return Math.random() > 0.3 ? 'open' : 'closed';
 		case 'prs_opened':
 			return ['open', 'closed', 'merged'][Math.floor(Math.random() * 3)];
 		case 'prs_merged':
 			return 'merged';
 		case 'pr_reviews':
-			return ['approved', 'changes_requested', 'commented'][Math.floor(Math.random() * 3)];
+			return ['open', 'closed', 'merged'][Math.floor(Math.random() * 3)];
 		default:
-			return '';
+			return 'open';
 	}
 }
 

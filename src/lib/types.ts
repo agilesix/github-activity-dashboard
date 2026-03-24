@@ -18,6 +18,32 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
 	prs_merged: 'PRs Merged'
 };
 
+export type ActivityCategory = 'issues' | 'pull_requests';
+
+export const ACTIVITY_TYPE_CATEGORY: Record<ActivityType, ActivityCategory> = {
+	issues_opened: 'issues',
+	issues_closed: 'issues',
+	issue_comments: 'issues',
+	prs_opened: 'pull_requests',
+	pr_reviews: 'pull_requests',
+	prs_merged: 'pull_requests'
+};
+
+export const ACTIVITY_CATEGORY_LABELS: Record<ActivityCategory, string> = {
+	issues: 'Issues',
+	pull_requests: 'Pull Requests'
+};
+
+/** Short label for the sub-type within its category (e.g., "Opened" instead of "Issues Opened") */
+export const ACTIVITY_TYPE_SHORT_LABELS: Record<ActivityType, string> = {
+	issues_opened: 'Opened',
+	issues_closed: 'Closed',
+	issue_comments: 'Comment',
+	prs_opened: 'Opened',
+	pr_reviews: 'Review',
+	prs_merged: 'Merged'
+};
+
 export interface QueryParams {
 	user: string;
 	repos: string[]; // "owner/repo" format
@@ -37,6 +63,36 @@ export interface ActivityItem {
 	state?: string; // open, closed, merged, etc.
 	labels?: string[];
 	number?: number; // issue or PR number
+}
+
+/**
+ * Well-known labels that represent issue/PR type rather than general tags.
+ * Matched case-insensitively. Covers GitHub defaults and common conventions.
+ */
+export const ISSUE_TYPE_LABELS = new Set([
+	'bug',
+	'enhancement',
+	'feature',
+	'feature request',
+	'documentation',
+	'docs',
+	'question',
+	'security',
+	'maintenance',
+	'chore',
+	'refactor',
+	'performance',
+	'accessibility',
+	'design',
+	'testing',
+	'ci/cd',
+	'infrastructure',
+	'dependencies',
+	'breaking change'
+]);
+
+export function isTypeLabel(label: string): boolean {
+	return ISSUE_TYPE_LABELS.has(label.toLowerCase());
 }
 
 export interface HeatmapEntry {

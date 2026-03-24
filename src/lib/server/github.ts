@@ -222,6 +222,8 @@ async function fetchIssueComments(
 						repo,
 						date: commentDate,
 						url: comment.html_url,
+						state: issue.state,
+						labels: issue.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
 						number: issue.number
 					});
 				}
@@ -313,7 +315,8 @@ async function fetchPrReviews(
 						repo,
 						date: reviewDate,
 						url: review.html_url,
-						state: review.state.toLowerCase(),
+						state: pr.pull_request?.merged_at ? 'merged' : pr.state,
+						labels: pr.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
 						number: pr.number
 					});
 				}
