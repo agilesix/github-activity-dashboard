@@ -34,12 +34,16 @@
 	.stats-grid {
 		display: flex;
 		gap: 12px;
-		flex-wrap: wrap;
+	}
+
+	@media (max-width: 640px) {
+		.stats-grid {
+			flex-direction: column;
+		}
 	}
 
 	.stat-card {
 		flex: 1;
-		min-width: 140px;
 		padding: 14px 16px;
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
