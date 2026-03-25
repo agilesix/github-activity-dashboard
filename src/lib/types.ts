@@ -13,7 +13,7 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
 	issues_opened: 'Issues opened',
 	issues_closed: 'Issues closed',
 	issue_comments: 'Issue comments',
-	prs_opened: 'PRs created',
+	prs_opened: 'PRs opened',
 	pr_reviews: 'PR reviews',
 	prs_merged: 'PRs merged'
 };

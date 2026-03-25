@@ -49,7 +49,7 @@ describe('buildActivityRows', () => {
 		expect(rows).toHaveLength(1);
 
 		const [type, number, title, repo, state, date, assignees, labels, url] = rows[0];
-		expect(type).toBe('Issues Opened');
+		expect(type).toBe('Issues opened');
 		expect(number).toBe('#42');
 		expect(title).toBe('Test issue');
 		expect(repo).toBe('org/repo');
@@ -120,7 +120,7 @@ describe('buildMetadataRows', () => {
 		expect(toMap['User']).toBe('octocat');
 		expect(toMap['Repos']).toBe('org/repo1, org/repo2');
 		expect(toMap['Date Range']).toBe('2025-01-01 to 2025-03-20');
-		expect(toMap['Activity Types']).toBe('Issues Opened, PRs Opened');
+		expect(toMap['Activity Types']).toBe('Issues opened, PRs opened');
 		expect(toMap['Total Items']).toBe('100');
 		expect(toMap['Filtered Items']).toBe('50');
 	});
