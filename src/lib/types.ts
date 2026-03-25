@@ -130,3 +130,9 @@ export interface FetchResult {
 	errors: FetchError[];
 	rateLimitInfo?: GitHubRateLimitInfo;
 }
+
+export interface GroupedSection {
+	category: ActivityCategory;
+	categoryLabel: string;
+	items: ActivityItem[];
+}

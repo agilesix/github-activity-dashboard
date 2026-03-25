@@ -1,14 +1,34 @@
 <script lang="ts">
-	import type { ActivityType, DashboardData, FetchError, GitHubRateLimitInfo } from '$lib/types';
 	import { ACTIVITY_TYPE_LABELS } from '$lib/types';
 	import {
 		buildHeatmapData,
-		canonicalQueryString,
 		computeSummaryStats,
 		encodeQueryParams,
 		formatRelativeTime,
 		parseQueryParams
 	} from '$lib/utils';
+	import { useStore } from '$lib/stores/use-store.svelte';
+	import {
+		dashboard as dashboardStore,
+		loading as loadingStore,
+		loadError as loadErrorStore,
+		fromCache as fromCacheStore,
+		errors as errorsStore,
+		rateLimitInfo as rateLimitInfoStore,
+		activeTab as activeTabStore,
+		fetchDashboard,
+		resetDashboard
+	} from '$lib/stores/dashboard-store';
+	import {
+		menuOpen as menuOpenStore,
+		copyFeedback as copyFeedbackStore,
+		stickyVisible as stickyVisibleStore,
+		closeMenu,
+		toggleMenu,
+		showCopyFeedback,
+		setStickyVisible
+	} from '$lib/stores/ui-store';
+	import { tabFilteredItems as tabFilteredItemsStore } from '$lib/stores/activity-filter-store';
 	import ActivityHeatmap from '$lib/components/ActivityHeatmap.svelte';
 	import ActivityTabs from '$lib/components/ActivityTabs.svelte';
 	import ActivityList from '$lib/components/ActivityList.svelte';
@@ -17,175 +37,88 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 
-	// State
-	let dashboard = $state<DashboardData | null>(null);
-	let fromCache = $state(false);
-	let errors = $state<FetchError[]>([]);
-	let rateLimitInfo = $state<GitHubRateLimitInfo | undefined>(undefined);
-	let loading = $state(true);
-	let loadError = $state<string | null>(null);
+	// Subscribe to stores
+	const dashboard = useStore(dashboardStore);
+	const loading = useStore(loadingStore);
+	const loadError = useStore(loadErrorStore);
+	const fromCache = useStore(fromCacheStore);
+	const errors = useStore(errorsStore);
+	const rateLimitInfo = useStore(rateLimitInfoStore);
+	const activeTab = useStore(activeTabStore);
+	const menuOpen = useStore(menuOpenStore);
+	const copyFeedback = useStore(copyFeedbackStore);
+	const stickyVisible = useStore(stickyVisibleStore);
+	const tabFilteredItems = useStore(tabFilteredItemsStore);
 
-	let activeTab = $state<'all' | ActivityType>('all');
-	let copyFeedback = $state(false);
-	let menuOpen = $state(false);
 	let headerRef = $state<HTMLElement | null>(null);
-	let stickyVisible = $state(false);
 
 	// Parse query from URL
 	let queryParams = $derived(parseQueryParams(page.url.searchParams));
-
-	// Client-side cache helpers
-	function getCacheKey(params: ReturnType<typeof parseQueryParams>): string {
-		return `dashboard:${canonicalQueryString(params!)}`;
-	}
-
-	function loadFromSessionCache(params: ReturnType<typeof parseQueryParams>): boolean {
-		if (!params || typeof sessionStorage === 'undefined') return false;
-		try {
-			const cached = sessionStorage.getItem(getCacheKey(params));
-			if (!cached) return false;
-			const data = JSON.parse(cached);
-			dashboard = data.dashboard;
-			fromCache = true;
-			errors = data.errors ?? [];
-			rateLimitInfo = data.rateLimitInfo;
-			return true;
-		} catch {
-			return false;
-		}
-	}
-
-	function saveToSessionCache(
-		params: ReturnType<typeof parseQueryParams>,
-		data: {
-			dashboard: DashboardData;
-			errors: FetchError[];
-			rateLimitInfo?: GitHubRateLimitInfo;
-		}
-	) {
-		if (!params || typeof sessionStorage === 'undefined') return;
-		try {
-			sessionStorage.setItem(getCacheKey(params), JSON.stringify(data));
-		} catch {
-			// sessionStorage full — non-fatal
-		}
-	}
 
 	// Fetch data on mount and when URL changes
 	$effect(() => {
 		const params = queryParams;
 		if (!params) {
-			loadError = 'Missing or invalid query parameters.';
-			loading = false;
+			loadErrorStore.set('Missing or invalid query parameters.');
+			loadingStore.set(false);
 			return;
 		}
 
 		const refresh = page.url.searchParams.get('refresh') === 'true';
+		resetDashboard();
 
-		// Check client-side cache first (unless refresh requested)
-		if (!refresh && loadFromSessionCache(params)) {
-			loading = false;
-			return;
-		}
-
-		loading = true;
-		loadError = null;
-		activeTab = 'all';
-
-		const queryString = encodeQueryParams(params);
-		let url = `/api/activity?${queryString}`;
-		if (refresh) url += '&refresh=true';
-
-		const headers: Record<string, string> = {};
-		const pat = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('github_pat') : null;
-		if (pat) headers['x-github-pat'] = pat;
-
-		fetch(url, { headers })
-			.then(
-				(res) =>
-					res.json() as Promise<{
-						dashboard?: DashboardData;
-						fromCache?: boolean;
-						errors?: FetchError[];
-						rateLimitInfo?: GitHubRateLimitInfo;
-						error?: string;
-					}>
-			)
-			.then((data) => {
-				if (data.error) {
-					loadError = data.error;
-				} else if (data.dashboard) {
-					dashboard = data.dashboard;
-					fromCache = data.fromCache ?? false;
-					errors = data.errors ?? [];
-					rateLimitInfo = data.rateLimitInfo;
-					saveToSessionCache(params, {
-						dashboard: data.dashboard,
-						errors: data.errors ?? [],
-						rateLimitInfo: data.rateLimitInfo
-					});
-				}
-				loading = false;
-
-				// Strip refresh param from URL so it doesn't persist
-				if (refresh) {
-					const cleanUrl = new URL(page.url);
-					cleanUrl.searchParams.delete('refresh');
-					goto(cleanUrl.pathname + '?' + cleanUrl.searchParams.toString(), {
-						replaceState: true,
-						keepFocus: true
-					});
-				}
-			})
-			.catch((err) => {
-				loadError = err?.message || 'Failed to fetch activity data.';
-				loading = false;
-			});
+		fetchDashboard(params, { refresh }).then(({ refreshed }) => {
+			if (refreshed) {
+				const cleanUrl = new URL(page.url);
+				cleanUrl.searchParams.delete('refresh');
+				goto(cleanUrl.pathname + '?' + cleanUrl.searchParams.toString(), {
+					replaceState: true,
+					keepFocus: true
+				});
+			}
+		});
 	});
 
-	let filteredItems = $derived(
-		!dashboard
-			? []
-			: activeTab === 'all'
-				? dashboard.items
-				: dashboard.items.filter((i) => i.type === activeTab)
-	);
-
+	// Derived from stores — heatmap and stats use tab-filtered items
 	let heatmapEntries = $derived(
-		dashboard ? buildHeatmapData(filteredItems, dashboard.query.from, dashboard.query.to) : []
+		dashboard.value
+			? buildHeatmapData(
+					tabFilteredItems.value,
+					dashboard.value.query.from,
+					dashboard.value.query.to
+				)
+			: []
 	);
 
-	let stats = $derived(dashboard ? computeSummaryStats(dashboard.items) : null);
+	let stats = $derived(dashboard.value ? computeSummaryStats(dashboard.value.items) : null);
 
 	let activeTabLabel = $derived(
-		activeTab === 'all' ? 'All Activity' : ACTIVITY_TYPE_LABELS[activeTab]
+		activeTab.value === 'all' ? 'All Activity' : ACTIVITY_TYPE_LABELS[activeTab.value]
 	);
 
-	// "New Query" URL seeds the form with current query params
 	let newQueryUrl = $derived.by(() => {
-		if (!dashboard) return resolve('/');
-		const qs = encodeQueryParams(dashboard.query);
+		if (!dashboard.value) return resolve('/');
+		const qs = encodeQueryParams(dashboard.value.query);
 		return `${resolve('/')}?${qs}`;
 	});
 
 	function handleRefresh() {
-		menuOpen = false;
+		closeMenu();
 		const url = new URL(page.url);
 		url.searchParams.set('refresh', 'true');
 		goto(resolve('/results') + '?' + url.searchParams.toString());
 	}
 
 	async function handleCopyLink() {
-		menuOpen = false;
+		closeMenu();
 		const url = new URL(page.url);
 		url.searchParams.delete('refresh');
 		await navigator.clipboard.writeText(url.toString());
-		copyFeedback = true;
-		setTimeout(() => (copyFeedback = false), 2000);
+		showCopyFeedback();
 	}
 
 	function handleNewQuery() {
-		menuOpen = false;
+		closeMenu();
 	}
 
 	// Observe when the main header scrolls out of view
@@ -193,7 +126,7 @@
 		if (!headerRef) return;
 		const observer = new IntersectionObserver(
 			([entry]) => {
-				stickyVisible = !entry.isIntersecting;
+				setStickyVisible(!entry.isIntersecting);
 			},
 			{ threshold: 0 }
 		);
@@ -202,9 +135,9 @@
 	});
 </script>
 
-<svelte:window onclick={() => (menuOpen = false)} />
+<svelte:window onclick={() => closeMenu()} />
 
-{#if loading}
+{#if loading.value}
 	<main class="loading-page">
 		<div class="loading-content">
 			<div class="spinner"></div>
@@ -222,28 +155,30 @@
 			</p>
 		</div>
 	</main>
-{:else if loadError}
+{:else if loadError.value}
 	<main class="error-page">
 		<h1>Something went wrong</h1>
-		<p>{loadError}</p>
+		<p>{loadError.value}</p>
 		<a href={newQueryUrl}>Back to search</a>
 	</main>
-{:else if dashboard && stats}
-	<div class="sticky-header" class:visible={stickyVisible}>
+{:else if dashboard.value && stats}
+	<div class="sticky-header" class:visible={stickyVisible.value}>
 		<div class="sticky-inner">
 			<div class="sticky-summary">
-				<div class="sticky-user">{dashboard.query.user}</div>
+				<div class="sticky-user">{dashboard.value.query.user}</div>
 				<div class="sticky-detail">
-					{dashboard.query.repos.length} repo{dashboard.query.repos.length > 1 ? 's' : ''}
+					{dashboard.value.query.repos.length} repo{dashboard.value.query.repos.length > 1
+						? 's'
+						: ''}
 					&middot;
-					{dashboard.query.from} &ndash; {dashboard.query.to}
+					{dashboard.value.query.from} &ndash; {dashboard.value.query.to}
 				</div>
 				<div class="sticky-tab">{activeTabLabel}</div>
 			</div>
 			<div class="sticky-actions-desktop">
 				<button class="btn btn-secondary btn-sm" onclick={handleRefresh}>Refresh</button>
 				<button class="btn btn-secondary btn-sm" onclick={handleCopyLink}>
-					{copyFeedback ? 'Copied!' : 'Copy Link'}
+					{copyFeedback.value ? 'Copied!' : 'Copy Link'}
 				</button>
 				<a href={newQueryUrl} class="btn btn-secondary btn-sm">New Query</a>
 			</div>
@@ -254,16 +189,16 @@
 					type="button"
 					aria-label="Actions menu"
 					aria-haspopup="menu"
-					aria-expanded={menuOpen}
+					aria-expanded={menuOpen.value}
 					aria-controls="sticky-actions-menu"
 					onclick={(e) => {
 						e.stopPropagation();
-						menuOpen = !menuOpen;
+						toggleMenu();
 					}}
 				>
 					&#8942;
 				</button>
-				{#if menuOpen}
+				{#if menuOpen.value}
 					<div
 						id="sticky-actions-menu"
 						class="menu-dropdown"
@@ -274,7 +209,7 @@
 							Refresh data
 						</button>
 						<button class="menu-item" type="button" role="menuitem" onclick={handleCopyLink}>
-							{copyFeedback ? 'Copied!' : 'Copy link'}
+							{copyFeedback.value ? 'Copied!' : 'Copy link'}
 						</button>
 						<a href={newQueryUrl} class="menu-item" role="menuitem" onclick={handleNewQuery}>
 							New query
@@ -289,36 +224,38 @@
 		<header class="results-header" bind:this={headerRef}>
 			<div class="header-top">
 				<div>
-					<h1>{dashboard.query.user}</h1>
+					<h1>{dashboard.value.query.user}</h1>
 					<p class="subtitle">
-						{dashboard.query.repos.length} repo{dashboard.query.repos.length > 1 ? 's' : ''}
+						{dashboard.value.query.repos.length} repo{dashboard.value.query.repos.length > 1
+							? 's'
+							: ''}
 						&middot;
-						{dashboard.query.from} to {dashboard.query.to}
+						{dashboard.value.query.from} to {dashboard.value.query.to}
 					</p>
 				</div>
 				<div class="header-actions">
 					<button class="btn btn-secondary" onclick={handleRefresh}>Refresh</button>
 					<button class="btn btn-secondary" onclick={handleCopyLink}>
-						{copyFeedback ? 'Copied!' : 'Copy Link'}
+						{copyFeedback.value ? 'Copied!' : 'Copy Link'}
 					</button>
 					<a href={newQueryUrl} class="btn btn-secondary">New Query</a>
 				</div>
 			</div>
 
 			<div class="fetch-info">
-				{#if fromCache}
-					Cached data from {formatRelativeTime(dashboard.fetchedAt)}
+				{#if fromCache.value}
+					Cached data from {formatRelativeTime(dashboard.value.fetchedAt)}
 				{:else}
-					Fetched {formatRelativeTime(dashboard.fetchedAt)}
+					Fetched {formatRelativeTime(dashboard.value.fetchedAt)}
 				{/if}
-				{#if rateLimitInfo}
-					&middot; API: {rateLimitInfo.remaining}/{rateLimitInfo.limit} remaining
+				{#if rateLimitInfo.value}
+					&middot; API: {rateLimitInfo.value.remaining}/{rateLimitInfo.value.limit} remaining
 				{/if}
 			</div>
 
-			{#if errors.length > 0}
+			{#if errors.value.length > 0}
 				<div class="warnings">
-					{#each errors as error, i (i)}
+					{#each errors.value as error, i (i)}
 						<p class="warning">{error.message}</p>
 					{/each}
 				</div>
@@ -329,15 +266,15 @@
 
 		<section class="activity-section">
 			<ActivityTabs
-				{activeTab}
+				activeTab={activeTab.value}
 				countsByType={stats.countsByType}
 				totalCount={stats.totalItems}
-				onchange={(tab) => (activeTab = tab)}
+				onchange={(tab) => activeTabStore.set(tab)}
 			/>
 
 			<ActivityHeatmap entries={heatmapEntries} />
 
-			<ActivityList items={filteredItems} repos={dashboard.query.repos} />
+			<ActivityList />
 		</section>
 	</main>
 {/if}

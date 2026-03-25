@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ActivityCategory } from '$lib/types';
+	import { getStateColor, getStateTitle } from '$lib/utils/colors';
 
 	interface Props {
 		state: string;
@@ -8,63 +9,8 @@
 
 	let { state, category }: Props = $props();
 
-	// GitHub-matching colors
-	// Issues: open=#1a7f37, closed/completed=#8250df, not_planned=#656d76
-	// PRs: open=#1a7f37, merged=#8250df, closed=#d1242f, draft=#656d76
-	let color = $derived.by(() => {
-		if (category === 'pull_requests') {
-			switch (state) {
-				case 'merged':
-					return '#8250df';
-				case 'open':
-					return '#1a7f37';
-				case 'closed':
-					return '#d1242f';
-				case 'draft':
-					return '#656d76';
-				default:
-					return '#656d76';
-			}
-		}
-		// Issues
-		switch (state) {
-			case 'open':
-				return '#1a7f37';
-			case 'closed':
-				return '#8250df';
-			case 'not_planned':
-				return '#656d76';
-			default:
-				return '#656d76';
-		}
-	});
-
-	let title = $derived.by(() => {
-		if (category === 'pull_requests') {
-			switch (state) {
-				case 'merged':
-					return 'Merged';
-				case 'open':
-					return 'Open';
-				case 'closed':
-					return 'Closed';
-				case 'draft':
-					return 'Draft';
-				default:
-					return state;
-			}
-		}
-		switch (state) {
-			case 'open':
-				return 'Open';
-			case 'closed':
-				return 'Closed';
-			case 'not_planned':
-				return 'Not planned';
-			default:
-				return state;
-		}
-	});
+	let color = $derived(getStateColor(state, category));
+	let title = $derived(getStateTitle(state, category));
 </script>
 
 <span class="state-icon" {title} aria-label={title}>
