@@ -1,19 +1,32 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolveRoute } from '$app/paths';
+	import { page } from '$app/state';
 	import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS } from '$lib/types';
-	import { encodeQueryParams, getDefaultDateRange, validateQueryParams } from '$lib/utils';
+	import {
+		encodeQueryParams,
+		getDefaultDateRange,
+		parseQueryParams,
+		validateQueryParams
+	} from '$lib/utils';
 	import type { ActivityType, QueryParams } from '$lib/types';
 	import RepoInput from './RepoInput.svelte';
 
 	const defaults = getDefaultDateRange();
 
-	let username = $state('');
-	let repos = $state<string[]>([]);
-	let fromDate = $state(defaults.from);
-	let toDate = $state(defaults.to);
-	let selectedTypes = $state<ActivityType[]>([...ACTIVITY_TYPES]);
-	let pat = $state('');
+	// Seed from URL query params (for "New Query" with pre-populated values)
+	const seed = parseQueryParams(page.url.searchParams);
+
+	// Restore PAT from sessionStorage
+	const savedPat =
+		typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('github_pat') || '' : '';
+
+	let username = $state(seed?.user ?? '');
+	let repos = $state<string[]>(seed?.repos ?? []);
+	let fromDate = $state(seed?.from ?? defaults.from);
+	let toDate = $state(seed?.to ?? defaults.to);
+	let selectedTypes = $state<ActivityType[]>(seed?.types ?? [...ACTIVITY_TYPES]);
+	let pat = $state(savedPat);
 	let errors = $state<string[]>([]);
 
 	function toggleType(type: ActivityType) {

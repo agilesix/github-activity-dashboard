@@ -161,6 +161,13 @@
 		activeTab === 'all' ? 'All Activity' : ACTIVITY_TYPE_LABELS[activeTab]
 	);
 
+	// "New Query" URL seeds the form with current query params
+	let newQueryUrl = $derived.by(() => {
+		if (!dashboard) return resolve('/');
+		const qs = encodeQueryParams(dashboard.query);
+		return `${resolve('/')}?${qs}`;
+	});
+
 	function handleRefresh() {
 		menuOpen = false;
 		const url = new URL(page.url);
@@ -219,7 +226,7 @@
 	<main class="error-page">
 		<h1>Something went wrong</h1>
 		<p>{loadError}</p>
-		<a href={resolve('/')}>Back to search</a>
+		<a href={newQueryUrl}>Back to search</a>
 	</main>
 {:else if dashboard && stats}
 	<div class="sticky-header" class:visible={stickyVisible}>
@@ -238,7 +245,7 @@
 				<button class="btn btn-secondary btn-sm" onclick={handleCopyLink}>
 					{copyFeedback ? 'Copied!' : 'Copy Link'}
 				</button>
-				<a href={resolve('/')} class="btn btn-secondary btn-sm">New Query</a>
+				<a href={newQueryUrl} class="btn btn-secondary btn-sm">New Query</a>
 			</div>
 			<div class="menu-container">
 				<button
@@ -269,7 +276,7 @@
 						<button class="menu-item" type="button" role="menuitem" onclick={handleCopyLink}>
 							{copyFeedback ? 'Copied!' : 'Copy link'}
 						</button>
-						<a href={resolve('/')} class="menu-item" role="menuitem" onclick={handleNewQuery}>
+						<a href={newQueryUrl} class="menu-item" role="menuitem" onclick={handleNewQuery}>
 							New query
 						</a>
 					</div>
@@ -294,7 +301,7 @@
 					<button class="btn btn-secondary" onclick={handleCopyLink}>
 						{copyFeedback ? 'Copied!' : 'Copy Link'}
 					</button>
-					<a href={resolve('/')} class="btn btn-secondary">New Query</a>
+					<a href={newQueryUrl} class="btn btn-secondary">New Query</a>
 				</div>
 			</div>
 
