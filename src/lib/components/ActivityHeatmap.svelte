@@ -64,47 +64,48 @@
 	}
 </script>
 
-<div class="heatmap-container">
-	<svg width={svgWidth} height={svgHeight}>
-		{#each grid.monthLabels as label (label.col)}
-			<text x={dayLabelWidth + label.col * cellStep} y={12} class="label month-label">
-				{label.text}
-			</text>
-		{/each}
+<div class="heatmap-container-wrapper">
+	<div class="heatmap-container">
+		<svg width={svgWidth} height={svgHeight}>
+			{#each grid.monthLabels as label (label.col)}
+				<text x={dayLabelWidth + label.col * cellStep} y={12} class="label month-label">
+					{label.text}
+				</text>
+			{/each}
 
-		{#each dayLabels as label, i (i)}
-			<text x={0} y={monthLabelHeight + i * cellStep + cellSize - 2} class="label day-label">
-				{label}
-			</text>
-		{/each}
+			{#each dayLabels as label, i (i)}
+				<text x={0} y={monthLabelHeight + i * cellStep + cellSize - 2} class="label day-label">
+					{label}
+				</text>
+			{/each}
 
-		{#each grid.cells as cell (cell.entry.date)}
-			<rect
-				x={dayLabelWidth + cell.col * cellStep}
-				y={monthLabelHeight + cell.row * cellStep}
-				width={cellSize}
-				height={cellSize}
-				rx="2"
-				fill={getHeatmapColor(cell.entry.count, maxCount)}
-				opacity={hasFilter && !isSelected(cell.entry.date) ? 0.3 : 1}
-				onmouseenter={(e) => showTooltip(cell.entry, e)}
-				onmouseleave={hideTooltip}
-				onclick={() => handleCellClick(cell.entry)}
-				role="button"
-				tabindex={0}
-				onkeydown={(e) => {
-					if (e.key === 'Enter' || e.key === ' ') {
-						e.preventDefault();
-						handleCellClick(cell.entry);
-					}
-				}}
-				aria-label={`${cell.entry.count} activit${cell.entry.count === 1 ? 'y' : 'ies'} on ${formatDisplayDate(cell.entry.date)}`}
-				aria-pressed={isSelected(cell.entry.date)}
-			/>
-		{/each}
-	</svg>
-
-	<div class="legend">
+			{#each grid.cells as cell (cell.entry.date)}
+				<rect
+					x={dayLabelWidth + cell.col * cellStep}
+					y={monthLabelHeight + cell.row * cellStep}
+					width={cellSize}
+					height={cellSize}
+					rx="2"
+					fill={getHeatmapColor(cell.entry.count, maxCount)}
+					opacity={hasFilter && !isSelected(cell.entry.date) ? 0.3 : 1}
+					onmouseenter={(e) => showTooltip(cell.entry, e)}
+					onmouseleave={hideTooltip}
+					onclick={() => handleCellClick(cell.entry)}
+					role="button"
+					tabindex={0}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							handleCellClick(cell.entry);
+						}
+					}}
+					aria-label={`${cell.entry.count} activit${cell.entry.count === 1 ? 'y' : 'ies'} on ${formatDisplayDate(cell.entry.date)}`}
+					aria-pressed={isSelected(cell.entry.date)}
+				/>
+			{/each}
+		</svg>
+	</div>
+	<div class="heatmap-legend">
 		<span class="legend-label">Less</span>
 		<span class="legend-cell" style="background: var(--heatmap-0)"></span>
 		<span class="legend-cell" style="background: var(--heatmap-1)"></span>
@@ -152,12 +153,12 @@
 		z-index: 10;
 	}
 
-	.legend {
+	.heatmap-legend {
 		display: flex;
 		align-items: center;
 		gap: 3px;
-		margin-top: 8px;
-		justify-content: flex-end;
+		margin-top: 6px;
+		margin-bottom: 8px;
 	}
 
 	.legend-label {

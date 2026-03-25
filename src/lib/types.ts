@@ -10,12 +10,12 @@ export const ACTIVITY_TYPES = [
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
 export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
-	issues_opened: 'Issues Opened',
-	issues_closed: 'Issues Closed',
-	issue_comments: 'Issue Comments',
-	prs_opened: 'PRs Opened',
-	pr_reviews: 'PR Reviews',
-	prs_merged: 'PRs Merged'
+	issues_opened: 'Issues opened',
+	issues_closed: 'Issues closed',
+	issue_comments: 'Issue comments',
+	prs_opened: 'PRs opened',
+	pr_reviews: 'PR reviews',
+	prs_merged: 'PRs merged'
 };
 
 export type ActivityCategory = 'issues' | 'pull_requests';
@@ -38,9 +38,9 @@ export const ACTIVITY_CATEGORY_LABELS: Record<ActivityCategory, string> = {
 export const ACTIVITY_TYPE_SHORT_LABELS: Record<ActivityType, string> = {
 	issues_opened: 'Opened',
 	issues_closed: 'Closed',
-	issue_comments: 'Comment',
+	issue_comments: 'Comments',
 	prs_opened: 'Opened',
-	pr_reviews: 'Review',
+	pr_reviews: 'Reviews',
 	prs_merged: 'Merged'
 };
 

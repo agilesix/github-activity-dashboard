@@ -7,7 +7,7 @@ import {
 	fromCache,
 	errors,
 	rateLimitInfo,
-	activeTab,
+	selectedTypes,
 	fetchDashboard,
 	resetDashboard
 } from './dashboard-store';
@@ -164,6 +164,6 @@ describe('dashboard-store', () => {
 		expect(fromCache.get()).toBe(false);
 		expect(errors.get()).toEqual([]);
 		expect(rateLimitInfo.get()).toBeUndefined();
-		expect(activeTab.get()).toBe('all');
+		expect(selectedTypes.get()).toEqual([]);
 	});
 });

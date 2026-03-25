@@ -1,20 +1,22 @@
 <script lang="ts">
 	import type { ActivityType } from '$lib/types';
+	import { ACTIVITY_TYPE_SHORT_LABELS, ACTIVITY_TYPE_LABELS } from '$lib/types';
+	import { useStore } from '$lib/stores/use-store.svelte';
+	import { selectedTypes } from '$lib/stores/dashboard-store';
+	import { toggleActivityType, clearActivityTypes } from '$lib/stores/activity-filter-store';
 
 	interface Props {
-		activeTab: 'all' | ActivityType;
 		countsByType: Record<ActivityType, number>;
 		totalCount: number;
-		onchange: (tab: 'all' | ActivityType) => void;
 	}
 
-	let { activeTab, countsByType, totalCount, onchange }: Props = $props();
+	let { countsByType, totalCount }: Props = $props();
 
-	type TabKey = 'all' | ActivityType;
+	const types = useStore(selectedTypes);
 
 	interface TabGroup {
 		label: string | null;
-		tabs: { key: TabKey; label: string; fullLabel: string }[];
+		tabs: { key: ActivityType | 'all'; label: string; fullLabel: string }[];
 	}
 
 	const groups: TabGroup[] = [
@@ -25,34 +27,65 @@
 		{
 			label: 'Issues',
 			tabs: [
-				{ key: 'issues_opened', label: 'Opened', fullLabel: 'Issues Opened' },
-				{ key: 'issue_comments', label: 'Comments', fullLabel: 'Issue Comments' },
-				{ key: 'issues_closed', label: 'Closed', fullLabel: 'Issues Closed' }
+				{
+					key: 'issues_opened' as const,
+					label: ACTIVITY_TYPE_SHORT_LABELS.issues_opened,
+					fullLabel: ACTIVITY_TYPE_LABELS.issues_opened
+				},
+				{
+					key: 'issue_comments' as const,
+					label: ACTIVITY_TYPE_SHORT_LABELS.issue_comments,
+					fullLabel: ACTIVITY_TYPE_LABELS.issue_comments
+				},
+				{
+					key: 'issues_closed' as const,
+					label: ACTIVITY_TYPE_SHORT_LABELS.issues_closed,
+					fullLabel: ACTIVITY_TYPE_LABELS.issues_closed
+				}
 			]
 		},
 		{
 			label: 'Pull Requests',
 			tabs: [
-				{ key: 'prs_opened', label: 'Opened', fullLabel: 'PRs Opened' },
-				{ key: 'pr_reviews', label: 'Reviews', fullLabel: 'PR Reviews' },
-				{ key: 'prs_merged', label: 'Merged', fullLabel: 'PRs Merged' }
+				{
+					key: 'prs_opened' as const,
+					label: ACTIVITY_TYPE_SHORT_LABELS.prs_opened,
+					fullLabel: ACTIVITY_TYPE_LABELS.prs_opened
+				},
+				{
+					key: 'pr_reviews' as const,
+					label: ACTIVITY_TYPE_SHORT_LABELS.pr_reviews,
+					fullLabel: ACTIVITY_TYPE_LABELS.pr_reviews
+				},
+				{
+					key: 'prs_merged' as const,
+					label: ACTIVITY_TYPE_SHORT_LABELS.prs_merged,
+					fullLabel: ACTIVITY_TYPE_LABELS.prs_merged
+				}
 			]
 		}
 	];
 
-	function getCount(key: TabKey): number {
+	function getCount(key: ActivityType | 'all'): number {
 		if (key === 'all') return totalCount;
 		return countsByType[key] || 0;
 	}
 
-	function handleSelectChange(e: Event) {
-		const value = (e.target as HTMLSelectElement).value;
-		onchange(value as TabKey);
+	function isActive(key: ActivityType | 'all'): boolean {
+		if (key === 'all') return types.value.length === 0;
+		return types.value.includes(key);
+	}
+
+	function handleClick(key: ActivityType | 'all') {
+		if (key === 'all') {
+			clearActivityTypes();
+		} else {
+			toggleActivityType(key);
+		}
 	}
 </script>
 
-<!-- Desktop: grouped pills -->
-<nav class="tabs-desktop" aria-label="Activity type filter">
+<nav class="tabs" aria-label="Activity type filter">
 	{#each groups as group (group.label ?? 'all')}
 		<div class="group" role="group" aria-label={group.label ?? 'All'}>
 			{#if group.label}
@@ -62,11 +95,11 @@
 				{#each group.tabs as tab (tab.key)}
 					<button
 						class="pill"
-						class:active={activeTab === tab.key}
-						onclick={() => onchange(tab.key)}
+						class:active={isActive(tab.key)}
+						onclick={() => handleClick(tab.key)}
 						type="button"
 						aria-label="{tab.fullLabel} ({getCount(tab.key)})"
-						aria-pressed={activeTab === tab.key}
+						aria-pressed={isActive(tab.key)}
 					>
 						{tab.label}
 						<span class="count" aria-hidden="true">{getCount(tab.key)}</span>
@@ -77,30 +110,8 @@
 	{/each}
 </nav>
 
-<!-- Mobile: grouped dropdown + count badge -->
-<div class="tabs-mobile">
-	<select value={activeTab} onchange={handleSelectChange} aria-label="Activity type filter">
-		{#each groups as group (group.label ?? 'all')}
-			{#if group.label}
-				<optgroup label={group.label}>
-					{#each group.tabs as tab (tab.key)}
-						<option value={tab.key}>{tab.fullLabel} ({getCount(tab.key)})</option>
-					{/each}
-				</optgroup>
-			{:else}
-				{#each group.tabs as tab (tab.key)}
-					<option value={tab.key}>{tab.fullLabel} ({getCount(tab.key)})</option>
-				{/each}
-			{/if}
-		{/each}
-	</select>
-	<span class="mobile-count" aria-live="polite" aria-label="Count for selected filter">
-		{getCount(activeTab)}
-	</span>
-</div>
-
 <style>
-	.tabs-desktop {
+	.tabs {
 		display: flex;
 		gap: 16px;
 		align-items: flex-end;
@@ -127,6 +138,7 @@
 	.group-pills {
 		display: flex;
 		gap: 4px;
+		flex-wrap: wrap;
 	}
 
 	.pill {
@@ -165,42 +177,19 @@
 		background: color-mix(in srgb, var(--color-link) 15%, transparent);
 	}
 
-	/* Mobile dropdown */
-	.tabs-mobile {
-		display: none;
-		align-items: center;
-		gap: 10px;
-		padding-bottom: 12px;
-		border-bottom: 1px solid var(--color-border);
-	}
-
-	.tabs-mobile select {
-		flex: 1;
-		padding: 6px 10px;
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		font-size: 14px;
-		background: var(--color-bg);
-		color: var(--color-text);
-	}
-
-	.mobile-count {
-		font-size: 13px;
-		font-weight: 700;
-		padding: 3px 10px;
-		background: color-mix(in srgb, var(--color-link) 12%, transparent);
-		color: var(--color-link);
-		border-radius: 10px;
-		white-space: nowrap;
-	}
-
 	@media (max-width: 640px) {
-		.tabs-desktop {
-			display: none;
+		.tabs {
+			gap: 12px;
 		}
 
-		.tabs-mobile {
-			display: flex;
+		.pill {
+			padding: 4px 10px;
+			font-size: 12px;
+		}
+
+		.count {
+			font-size: 10px;
+			padding: 1px 5px;
 		}
 	}
 </style>

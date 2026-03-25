@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { DashboardData } from '$lib/types';
-import { dashboard, activeTab } from './dashboard-store';
+import { dashboard, selectedTypes } from './dashboard-store';
 import { filterFrom, filterTo } from './date-filter';
 import {
 	searchQuery,
@@ -65,7 +65,7 @@ describe('activity-filter-store', () => {
 	beforeEach(() => {
 		// Reset all atoms
 		dashboard.set(null);
-		activeTab.set('all');
+		selectedTypes.set([]);
 		searchQuery.set('');
 		selectedRepos.set([]);
 		selectedLabels.set([]);
@@ -86,7 +86,7 @@ describe('activity-filter-store', () => {
 
 	it('filters by activity type tab', () => {
 		dashboard.set(mockDashboard);
-		activeTab.set('prs_opened');
+		selectedTypes.set(['prs_opened']);
 		expect(filteredItems.get()).toHaveLength(1);
 		expect(filteredItems.get()[0].id).toBe('2');
 	});
@@ -122,7 +122,7 @@ describe('activity-filter-store', () => {
 
 	it('chains multiple filters', () => {
 		dashboard.set(mockDashboard);
-		activeTab.set('issues_opened');
+		selectedTypes.set(['issues_opened']);
 		selectedRepos.set(['org/alpha']);
 		searchQuery.set('docs');
 		expect(filteredItems.get()).toHaveLength(1);
