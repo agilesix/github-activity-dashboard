@@ -510,13 +510,11 @@ export async function fetchGitHubActivity(params: QueryParams): Promise<FetchRes
 }
 
 /**
- * Fetch repos a user owns or is a member of.
+ * Fetch repos for a given user.
  *
- * With a PAT: uses the authenticated endpoint (GET /user/repos) which includes
- * private repos and org repos the token has access to. Paginates to get all results.
- *
- * Without a PAT: uses the public endpoint (GET /users/{username}/repos) which only
- * returns publicly visible repos.
+ * Always uses GET /users/{username}/repos to list repos for the specified user.
+ * The PAT (if provided) is used only for authentication (higher rate limits,
+ * visibility into private repos in shared orgs) — not to switch whose repos are listed.
  */
 export async function fetchUserRepos(
 	username: string,
@@ -527,33 +525,15 @@ export async function fetchUserRepos(
 	try {
 		const allRepos: string[] = [];
 
-		if (pat) {
-			// Authenticated: use /user/repos which returns all repos the user can access
-			const iterator = octokit.paginate.iterator(octokit.rest.repos.listForAuthenticatedUser, {
-				type: 'all',
-				sort: 'updated',
-				per_page: 100
-			});
+		const iterator = octokit.paginate.iterator(octokit.rest.repos.listForUser, {
+			username,
+			sort: 'updated',
+			per_page: 100
+		});
 
-			for await (const response of iterator) {
-				for (const repo of response.data) {
-					allRepos.push(repo.full_name);
-				}
-			}
-		} else {
-			// Unauthenticated: use /users/{username}/repos (public repos only)
-			// Note: 'type' param on this endpoint only accepts 'owner' | 'member' | 'all'
-			// but 'all' requires authentication. Omit it to get public repos.
-			const iterator = octokit.paginate.iterator(octokit.rest.repos.listForUser, {
-				username,
-				sort: 'updated',
-				per_page: 100
-			});
-
-			for await (const response of iterator) {
-				for (const repo of response.data) {
-					allRepos.push(repo.full_name);
-				}
+		for await (const response of iterator) {
+			for (const repo of response.data) {
+				allRepos.push(repo.full_name);
 			}
 		}
 
