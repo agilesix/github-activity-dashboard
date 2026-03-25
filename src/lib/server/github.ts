@@ -53,6 +53,14 @@ function buildSearchQuery(
 }
 
 /**
+ * Extract assignee login names from an issue/PR search result.
+ */
+function extractAssignees(assignees?: { login?: string }[] | null): string[] {
+	if (!assignees) return [];
+	return assignees.map((a) => a.login).filter((l): l is string => !!l);
+}
+
+/**
  * Extract "owner/repo" from a full GitHub repo URL or API URL.
  */
 function extractRepo(repoUrl: string): string {
@@ -97,7 +105,8 @@ async function fetchIssuesOpened(
 				url: issue.html_url,
 				state: issue.state,
 				labels: issue.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
-				number: issue.number
+				number: issue.number,
+				assignees: extractAssignees(issue.assignees)
 			});
 		}
 
@@ -123,7 +132,8 @@ async function fetchIssuesOpened(
 						url: issue.html_url,
 						state: issue.state,
 						labels: issue.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
-						number: issue.number
+						number: issue.number,
+						assignees: extractAssignees(issue.assignees)
 					});
 				}
 			}
@@ -167,7 +177,8 @@ async function fetchIssuesClosed(
 				url: issue.html_url,
 				state: 'closed',
 				labels: issue.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
-				number: issue.number
+				number: issue.number,
+				assignees: extractAssignees(issue.assignees)
 			});
 		}
 	} catch (err) {
@@ -224,7 +235,8 @@ async function fetchIssueComments(
 						url: comment.html_url,
 						state: issue.state,
 						labels: issue.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
-						number: issue.number
+						number: issue.number,
+						assignees: extractAssignees(issue.assignees)
 					});
 				}
 			} catch (commentErr) {
@@ -264,7 +276,8 @@ async function fetchPrsOpened(
 				url: pr.html_url,
 				state: pr.pull_request?.merged_at ? 'merged' : pr.state,
 				labels: pr.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
-				number: pr.number
+				number: pr.number,
+				assignees: extractAssignees(pr.assignees)
 			});
 		}
 	} catch (err) {
@@ -317,7 +330,8 @@ async function fetchPrReviews(
 						url: review.html_url,
 						state: pr.pull_request?.merged_at ? 'merged' : pr.state,
 						labels: pr.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
-						number: pr.number
+						number: pr.number,
+						assignees: extractAssignees(pr.assignees)
 					});
 				}
 			} catch (reviewErr) {
@@ -357,7 +371,8 @@ async function fetchPrsMerged(
 				url: pr.html_url,
 				state: 'merged',
 				labels: pr.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
-				number: pr.number
+				number: pr.number,
+				assignees: extractAssignees(pr.assignees)
 			});
 		}
 	} catch (err) {

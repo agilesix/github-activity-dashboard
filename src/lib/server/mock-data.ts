@@ -33,7 +33,8 @@ export function generateMockData(params: QueryParams): DashboardData {
 				url: `https://github.com/${repo}/${type.includes('pr') ? 'pull' : 'issues'}/${number}`,
 				state: generateState(type),
 				labels: generateLabels(),
-				number
+				number,
+				assignees: generateAssignees(params.user)
 			});
 		}
 	}
@@ -138,6 +139,16 @@ function generateState(type: string): string {
 		default:
 			return 'open';
 	}
+}
+
+function generateAssignees(user: string): string[] {
+	const others = ['alice', 'bob', 'carol', 'dave'];
+	if (Math.random() > 0.6) return [];
+	const assignees = [user];
+	if (Math.random() > 0.5) {
+		assignees.push(others[Math.floor(Math.random() * others.length)]);
+	}
+	return assignees;
 }
 
 function generateLabels(): string[] {

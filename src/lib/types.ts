@@ -63,6 +63,7 @@ export interface ActivityItem {
 	state?: string; // open, closed, merged, etc.
 	labels?: string[];
 	number?: number; // issue or PR number
+	assignees?: string[]; // GitHub login usernames
 }
 
 /**
