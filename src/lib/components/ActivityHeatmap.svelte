@@ -1,6 +1,9 @@
 <script lang="ts">
 	import type { HeatmapEntry } from '$lib/types';
 	import { formatDisplayDate } from '$lib/utils';
+	import { computeHeatmapGrid, getHeatmapColor } from '$lib/utils/heatmap';
+	import { useStore } from '$lib/stores/use-store.svelte';
+	import { filterFrom, filterTo, setDateRange, clearDateFilter } from '$lib/stores/date-filter';
 
 	interface Props {
 		entries: HeatmapEntry[];
@@ -18,79 +21,10 @@
 
 	let tooltip = $state<{ text: string; x: number; y: number } | null>(null);
 
-	function getColor(count: number, maxCount: number): string {
-		if (count === 0) return 'var(--heatmap-0)';
-		const ratio = count / maxCount;
-		if (ratio <= 0.25) return 'var(--heatmap-1)';
-		if (ratio <= 0.5) return 'var(--heatmap-2)';
-		if (ratio <= 0.75) return 'var(--heatmap-3)';
-		return 'var(--heatmap-4)';
-	}
+	const currentFrom = useStore(filterFrom);
+	const currentTo = useStore(filterTo);
 
-	// Compute grid position for each cell and month labels from the flat entries list.
-	// Each entry gets a column (week index) and row (day of week) based on the
-	// number of days since the start date's week-start (Sunday).
-	interface Cell {
-		entry: HeatmapEntry;
-		col: number;
-		row: number;
-	}
-
-	let grid = $derived.by(() => {
-		if (entries.length === 0)
-			return {
-				cells: [] as Cell[],
-				monthLabels: [] as { text: string; col: number }[],
-				totalCols: 0
-			};
-
-		// Find the Sunday on or before the first entry
-		const firstDate = new Date(entries[0].date + 'T00:00:00');
-		const startTime = firstDate.getTime() - firstDate.getDay() * 86400000;
-		const msPerDay = 86400000;
-
-		const cells: Cell[] = [];
-		const monthLabels: { text: string; col: number }[] = [];
-		let lastMonth = -1;
-
-		// First pass: collect all month boundaries
-		const rawLabels: { text: string; col: number }[] = [];
-		for (const entry of entries) {
-			const date = new Date(entry.date + 'T00:00:00');
-			const daysSinceStart = Math.round((date.getTime() - startTime) / msPerDay);
-			const col = Math.floor(daysSinceStart / 7);
-			const row = daysSinceStart % 7;
-
-			cells.push({ entry, col, row });
-
-			const month = date.getMonth();
-			if (month !== lastMonth) {
-				rawLabels.push({
-					text: date.toLocaleDateString('en-US', { month: 'short' }),
-					col
-				});
-				lastMonth = month;
-			}
-		}
-
-		// Second pass: remove labels that are too close, preferring the later one
-		// (i.e., if Dec col=0 and Jan col=1, drop Dec and keep Jan)
-		for (let i = 0; i < rawLabels.length - 1; i++) {
-			if (rawLabels[i + 1].col - rawLabels[i].col < 3) {
-				// Skip the earlier label
-				continue;
-			}
-			monthLabels.push(rawLabels[i]);
-		}
-		// Always include the last label
-		if (rawLabels.length > 0) {
-			monthLabels.push(rawLabels[rawLabels.length - 1]);
-		}
-
-		const totalCols = cells.length > 0 ? cells[cells.length - 1].col + 1 : 0;
-		return { cells, monthLabels, totalCols };
-	});
-
+	let grid = $derived(computeHeatmapGrid(entries));
 	let maxCount = $derived(Math.max(1, ...entries.map((e) => e.count)));
 	let svgWidth = $derived(dayLabelWidth + grid.totalCols * cellStep + cellGap);
 	let svgHeight = $derived(monthLabelHeight + 7 * cellStep + cellGap);
@@ -107,6 +41,26 @@
 
 	function hideTooltip() {
 		tooltip = null;
+	}
+
+	let hasFilter = $derived(currentFrom.value !== null || currentTo.value !== null);
+
+	function isSelected(date: string): boolean {
+		const from = currentFrom.value;
+		const to = currentTo.value;
+		if (!from && !to) return false;
+		if (from && to) return date >= from && date <= to;
+		if (from) return date >= from;
+		if (to) return date <= to;
+		return false;
+	}
+
+	function handleCellClick(entry: HeatmapEntry) {
+		if (currentFrom.value === entry.date && currentTo.value === entry.date) {
+			clearDateFilter();
+		} else {
+			setDateRange(entry.date, entry.date);
+		}
 	}
 </script>
 
@@ -131,11 +85,21 @@
 				width={cellSize}
 				height={cellSize}
 				rx="2"
-				fill={getColor(cell.entry.count, maxCount)}
+				fill={getHeatmapColor(cell.entry.count, maxCount)}
+				opacity={hasFilter && !isSelected(cell.entry.date) ? 0.3 : 1}
 				onmouseenter={(e) => showTooltip(cell.entry, e)}
 				onmouseleave={hideTooltip}
-				role="img"
+				onclick={() => handleCellClick(cell.entry)}
+				role="button"
+				tabindex={0}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						handleCellClick(cell.entry);
+					}
+				}}
 				aria-label={`${cell.entry.count} activit${cell.entry.count === 1 ? 'y' : 'ies'} on ${formatDisplayDate(cell.entry.date)}`}
+				aria-pressed={isSelected(cell.entry.date)}
 			/>
 		{/each}
 	</svg>
