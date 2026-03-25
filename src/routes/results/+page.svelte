@@ -3,6 +3,7 @@
 	import { ACTIVITY_TYPE_LABELS } from '$lib/types';
 	import {
 		buildHeatmapData,
+		canonicalQueryString,
 		computeSummaryStats,
 		encodeQueryParams,
 		formatRelativeTime,
@@ -33,6 +34,43 @@
 	// Parse query from URL
 	let queryParams = $derived(parseQueryParams(page.url.searchParams));
 
+	// Client-side cache helpers
+	function getCacheKey(params: ReturnType<typeof parseQueryParams>): string {
+		return `dashboard:${canonicalQueryString(params!)}`;
+	}
+
+	function loadFromSessionCache(params: ReturnType<typeof parseQueryParams>): boolean {
+		if (!params || typeof sessionStorage === 'undefined') return false;
+		try {
+			const cached = sessionStorage.getItem(getCacheKey(params));
+			if (!cached) return false;
+			const data = JSON.parse(cached);
+			dashboard = data.dashboard;
+			fromCache = true;
+			errors = data.errors ?? [];
+			rateLimitInfo = data.rateLimitInfo;
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	function saveToSessionCache(
+		params: ReturnType<typeof parseQueryParams>,
+		data: {
+			dashboard: DashboardData;
+			errors: FetchError[];
+			rateLimitInfo?: GitHubRateLimitInfo;
+		}
+	) {
+		if (!params || typeof sessionStorage === 'undefined') return;
+		try {
+			sessionStorage.setItem(getCacheKey(params), JSON.stringify(data));
+		} catch {
+			// sessionStorage full — non-fatal
+		}
+	}
+
 	// Fetch data on mount and when URL changes
 	$effect(() => {
 		const params = queryParams;
@@ -42,12 +80,19 @@
 			return;
 		}
 
+		const refresh = page.url.searchParams.get('refresh') === 'true';
+
+		// Check client-side cache first (unless refresh requested)
+		if (!refresh && loadFromSessionCache(params)) {
+			loading = false;
+			return;
+		}
+
 		loading = true;
 		loadError = null;
 		activeTab = 'all';
 
 		const queryString = encodeQueryParams(params);
-		const refresh = page.url.searchParams.get('refresh') === 'true';
 		let url = `/api/activity?${queryString}`;
 		if (refresh) url += '&refresh=true';
 
@@ -74,8 +119,23 @@
 					fromCache = data.fromCache ?? false;
 					errors = data.errors ?? [];
 					rateLimitInfo = data.rateLimitInfo;
+					saveToSessionCache(params, {
+						dashboard: data.dashboard,
+						errors: data.errors ?? [],
+						rateLimitInfo: data.rateLimitInfo
+					});
 				}
 				loading = false;
+
+				// Strip refresh param from URL so it doesn't persist
+				if (refresh) {
+					const cleanUrl = new URL(page.url);
+					cleanUrl.searchParams.delete('refresh');
+					goto(cleanUrl.pathname + '?' + cleanUrl.searchParams.toString(), {
+						replaceState: true,
+						keepFocus: true
+					});
+				}
 			})
 			.catch((err) => {
 				loadError = err?.message || 'Failed to fetch activity data.';
