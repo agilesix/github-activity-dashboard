@@ -161,18 +161,23 @@ describe('filterByActivityType', () => {
 		makeItem({ id: '3', type: 'issues_opened' })
 	];
 
-	it('returns all items for "all" tab', () => {
-		expect(filterByActivityType(items, 'all')).toHaveLength(3);
+	it('returns all items when types is empty (all)', () => {
+		expect(filterByActivityType(items, [])).toHaveLength(3);
 	});
 
-	it('filters to specific type', () => {
-		const result = filterByActivityType(items, 'prs_opened');
+	it('filters to a single type', () => {
+		const result = filterByActivityType(items, ['prs_opened']);
 		expect(result).toHaveLength(1);
 		expect(result[0].id).toBe('2');
 	});
 
+	it('filters to multiple types', () => {
+		const result = filterByActivityType(items, ['issues_opened', 'prs_opened']);
+		expect(result).toHaveLength(3);
+	});
+
 	it('returns empty for no match', () => {
-		expect(filterByActivityType(items, 'prs_merged')).toHaveLength(0);
+		expect(filterByActivityType(items, ['prs_merged'])).toHaveLength(0);
 	});
 });
 

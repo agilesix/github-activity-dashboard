@@ -3,7 +3,7 @@
 	import { filteredItems, hasActiveFilters, clearFilters } from '$lib/stores/activity-filter-store';
 	import {
 		dashboard as dashboardStore,
-		activeTab as activeTabStore
+		selectedTypes as selectedTypesStore
 	} from '$lib/stores/dashboard-store';
 	import { searchQuery, selectedRepos, selectedLabels } from '$lib/stores/activity-filter-store';
 	import { effectiveDateFilter } from '$lib/stores/date-filter';
@@ -14,14 +14,13 @@
 	const items = useStore(filteredItems);
 	const active = useStore(hasActiveFilters);
 	const dashboard = useStore(dashboardStore);
-	const activeTab = useStore(activeTabStore);
 
 	function handleExport() {
 		const dash = dashboard.value;
 		if (!dash) return;
 
 		const dateFilter = effectiveDateFilter.get();
-		const tab = activeTab.value;
+		const types = selectedTypesStore.get();
 
 		const meta: ExportMetadata = {
 			user: dash.query.user,
@@ -30,7 +29,7 @@
 			to: dash.query.to,
 			types: dash.query.types,
 			exportedAt: new Date().toISOString(),
-			activeTab: tab === 'all' ? 'All Activity' : ACTIVITY_TYPE_LABELS[tab],
+			selectedTypes: types.map((t) => ACTIVITY_TYPE_LABELS[t]),
 			filters: {
 				searchQuery: searchQuery.get(),
 				selectedRepos: selectedRepos.get(),

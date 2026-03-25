@@ -8,7 +8,7 @@ import {
 	filterByActivityType,
 	groupByCategory
 } from '$lib/utils/filters';
-import { dashboard, activeTab } from './dashboard-store';
+import { dashboard, selectedTypes } from './dashboard-store';
 import { effectiveDateFilter, clearDateFilter } from './date-filter';
 
 const PAGE_SIZE = 100;
@@ -27,19 +27,19 @@ export const collapsedSections = atom<Record<string, boolean>>({});
 // Computed stores
 // =======================================================================
 
-// Computed: items filtered only by activity type tab (for heatmap — no date/repo/label/search)
-export const tabFilteredItems = computed([dashboard, activeTab], (dash, tab) => {
+// Computed: items filtered only by activity types (for heatmap — no date/repo/label/search)
+export const typeFilteredItems = computed([dashboard, selectedTypes], (dash, types) => {
 	if (!dash) return [];
-	return filterByActivityType(dash.items, tab);
+	return filterByActivityType(dash.items, types);
 });
 
 // Computed: filtered items (chains all filters)
 export const filteredItems = computed(
-	[dashboard, activeTab, effectiveDateFilter, selectedRepos, selectedLabels, searchQuery],
-	(dash, tab, dateFilter, repos, labels, query) => {
+	[dashboard, selectedTypes, effectiveDateFilter, selectedRepos, selectedLabels, searchQuery],
+	(dash, types, dateFilter, repos, labels, query) => {
 		if (!dash) return [];
 		let items: ActivityItem[] = dash.items;
-		items = filterByActivityType(items, tab);
+		items = filterByActivityType(items, types);
 		if (dateFilter) {
 			items = filterByDateRange(items, dateFilter.from, dateFilter.to);
 		}
@@ -95,15 +95,22 @@ export function toggleLabel(label: string) {
 	);
 }
 
+export function toggleActivityType(type: ActivityType) {
+	const current = selectedTypes.get();
+	selectedTypes.set(
+		current.includes(type) ? current.filter((t) => t !== type) : [...current, type]
+	);
+}
+
+export function clearActivityTypes() {
+	selectedTypes.set([]);
+}
+
 export function clearFilters() {
 	searchQuery.set('');
 	selectedRepos.set([]);
 	selectedLabels.set([]);
 	clearDateFilter();
-}
-
-export function setActiveTab(tab: 'all' | ActivityType) {
-	activeTab.set(tab);
 }
 
 export function toggleSection(category: string) {
@@ -130,7 +137,13 @@ function setupAutoReset() {
 	};
 
 	// Listen to filter changes, but skip the first emission
-	for (const store of [searchQuery, selectedRepos, selectedLabels, effectiveDateFilter]) {
+	for (const store of [
+		searchQuery,
+		selectedRepos,
+		selectedLabels,
+		selectedTypes,
+		effectiveDateFilter
+	]) {
 		let first = true;
 		store.listen(() => {
 			if (first) {

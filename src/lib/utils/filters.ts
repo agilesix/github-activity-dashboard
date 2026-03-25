@@ -41,12 +41,9 @@ export function filterBySearch(items: ActivityItem[], query: string): ActivityIt
 	);
 }
 
-export function filterByActivityType(
-	items: ActivityItem[],
-	tab: 'all' | ActivityType
-): ActivityItem[] {
-	if (tab === 'all') return items;
-	return items.filter((i) => i.type === tab);
+export function filterByActivityType(items: ActivityItem[], types: ActivityType[]): ActivityItem[] {
+	if (types.length === 0) return items;
+	return items.filter((i) => types.includes(i.type));
 }
 
 // =======================================================================

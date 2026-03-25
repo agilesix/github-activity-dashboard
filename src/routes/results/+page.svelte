@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { ACTIVITY_TYPE_LABELS } from '$lib/types';
 	import {
 		buildHeatmapData,
 		computeSummaryStats,
@@ -8,6 +7,7 @@
 		parseQueryParams
 	} from '$lib/utils';
 	import { useStore } from '$lib/stores/use-store.svelte';
+	import { ACTIVITY_TYPE_LABELS } from '$lib/types';
 	import {
 		dashboard as dashboardStore,
 		loading as loadingStore,
@@ -15,7 +15,7 @@
 		fromCache as fromCacheStore,
 		errors as errorsStore,
 		rateLimitInfo as rateLimitInfoStore,
-		activeTab as activeTabStore,
+		selectedTypes as selectedTypesStore,
 		fetchDashboard,
 		resetDashboard
 	} from '$lib/stores/dashboard-store';
@@ -28,9 +28,10 @@
 		showCopyFeedback,
 		setStickyVisible
 	} from '$lib/stores/ui-store';
-	import { tabFilteredItems as tabFilteredItemsStore } from '$lib/stores/activity-filter-store';
+	import { typeFilteredItems as typeFilteredItemsStore } from '$lib/stores/activity-filter-store';
 	import ActivityHeatmap from '$lib/components/ActivityHeatmap.svelte';
 	import ActivityTabs from '$lib/components/ActivityTabs.svelte';
+	import ActivityBarChart from '$lib/components/ActivityBarChart.svelte';
 	import ActivityList from '$lib/components/ActivityList.svelte';
 	import SummaryStats from '$lib/components/SummaryStats.svelte';
 	import { goto } from '$app/navigation';
@@ -44,13 +45,19 @@
 	const fromCache = useStore(fromCacheStore);
 	const errors = useStore(errorsStore);
 	const rateLimitInfo = useStore(rateLimitInfoStore);
-	const activeTab = useStore(activeTabStore);
 	const menuOpen = useStore(menuOpenStore);
 	const copyFeedback = useStore(copyFeedbackStore);
 	const stickyVisible = useStore(stickyVisibleStore);
-	const tabFilteredItems = useStore(tabFilteredItemsStore);
+	const typeFilteredItems = useStore(typeFilteredItemsStore);
+	const selectedTypesVal = useStore(selectedTypesStore);
 
 	let headerRef = $state<HTMLElement | null>(null);
+
+	let activeTypesLabel = $derived(
+		selectedTypesVal.value.length === 0
+			? 'All Activity'
+			: selectedTypesVal.value.map((t) => ACTIVITY_TYPE_LABELS[t]).join(', ')
+	);
 
 	// Parse query from URL
 	let queryParams = $derived(parseQueryParams(page.url.searchParams));
@@ -79,11 +86,11 @@
 		});
 	});
 
-	// Derived from stores — heatmap and stats use tab-filtered items
+	// Derived from stores — heatmap and stats use type-filtered items
 	let heatmapEntries = $derived(
 		dashboard.value
 			? buildHeatmapData(
-					tabFilteredItems.value,
+					typeFilteredItems.value,
 					dashboard.value.query.from,
 					dashboard.value.query.to
 				)
@@ -91,10 +98,6 @@
 	);
 
 	let stats = $derived(dashboard.value ? computeSummaryStats(dashboard.value.items) : null);
-
-	let activeTabLabel = $derived(
-		activeTab.value === 'all' ? 'All Activity' : ACTIVITY_TYPE_LABELS[activeTab.value]
-	);
 
 	let newQueryUrl = $derived.by(() => {
 		if (!dashboard.value) return resolve('/');
@@ -173,7 +176,7 @@
 					&middot;
 					{dashboard.value.query.from} &ndash; {dashboard.value.query.to}
 				</div>
-				<div class="sticky-tab">{activeTabLabel}</div>
+				<div class="sticky-types">{activeTypesLabel}</div>
 			</div>
 			<div class="sticky-actions-desktop">
 				<button class="btn btn-secondary btn-sm" onclick={handleRefresh}>Refresh</button>
@@ -265,14 +268,15 @@
 		<SummaryStats {stats} />
 
 		<section class="activity-section">
-			<ActivityTabs
-				activeTab={activeTab.value}
-				countsByType={stats.countsByType}
-				totalCount={stats.totalItems}
-				onchange={(tab) => activeTabStore.set(tab)}
-			/>
+			<ActivityTabs countsByType={stats.countsByType} totalCount={stats.totalItems} />
 
 			<ActivityHeatmap entries={heatmapEntries} />
+
+			<ActivityBarChart
+				items={typeFilteredItems.value}
+				allItems={dashboard.value.items}
+				repos={dashboard.value.query.repos}
+			/>
 
 			<ActivityList />
 		</section>
@@ -396,10 +400,13 @@
 		text-overflow: ellipsis;
 	}
 
-	.sticky-tab {
+	.sticky-types {
 		font-size: 12px;
 		font-weight: 600;
 		color: var(--color-link);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	/* Desktop action buttons in sticky header */

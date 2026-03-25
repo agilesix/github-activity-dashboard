@@ -327,7 +327,7 @@ async function fetchPrReviews(
 						title: `${formatReviewState(review.state)} on #${pr.number}: ${pr.title}`,
 						repo,
 						date: reviewDate,
-						url: review.html_url,
+						url: review.html_url || pr.html_url,
 						state: pr.pull_request?.merged_at ? 'merged' : pr.state,
 						labels: pr.labels.map((l) => (typeof l === 'string' ? l : l.name || '')),
 						number: pr.number,

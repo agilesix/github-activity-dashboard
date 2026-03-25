@@ -84,7 +84,7 @@ describe('buildMetadataRows', () => {
 		to: '2025-03-20',
 		types: ['issues_opened', 'prs_opened'],
 		exportedAt: '2025-03-20T12:00:00Z',
-		activeTab: 'All Activity',
+		selectedTypes: [],
 		filters: {
 			searchQuery: '',
 			selectedRepos: [],
@@ -108,7 +108,7 @@ describe('buildMetadataRows', () => {
 		expect(fields).toContain('Repos');
 		expect(fields).toContain('Date Range');
 		expect(fields).toContain('Activity Types');
-		expect(fields).toContain('Active Tab');
+		expect(fields).toContain('Selected Types');
 		expect(fields).toContain('Total Items');
 		expect(fields).toContain('Filtered Items');
 		expect(fields).toContain('Exported At');

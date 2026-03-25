@@ -19,7 +19,7 @@ export const loadError = atom<string | null>(null);
 export const fromCache = atom(false);
 export const errors = atom<FetchError[]>([]);
 export const rateLimitInfo = atom<GitHubRateLimitInfo | undefined>(undefined);
-export const activeTab = atom<'all' | ActivityType>('all');
+export const selectedTypes = atom<ActivityType[]>([]);
 
 // =======================================================================
 // Types
@@ -61,7 +61,7 @@ export async function fetchDashboard(
 
 	loading.set(true);
 	loadError.set(null);
-	activeTab.set('all');
+	selectedTypes.set([]);
 
 	const queryString = encodeQueryParams(params);
 	let url = `/api/activity?${queryString}`;
@@ -113,5 +113,5 @@ export function resetDashboard() {
 	fromCache.set(false);
 	errors.set([]);
 	rateLimitInfo.set(undefined);
-	activeTab.set('all');
+	selectedTypes.set([]);
 }

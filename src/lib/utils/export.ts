@@ -13,7 +13,7 @@ export interface ExportMetadata {
 	to: string;
 	types: ActivityType[];
 	exportedAt: string;
-	activeTab: string;
+	selectedTypes: string[];
 	filters: {
 		searchQuery: string;
 		selectedRepos: string[];
@@ -68,7 +68,7 @@ export function buildMetadataRows(meta: ExportMetadata): { headers: string[]; ro
 		['Repos', meta.repos.join(', ')],
 		['Date Range', `${meta.from} to ${meta.to}`],
 		['Activity Types', meta.types.map((t) => ACTIVITY_TYPE_LABELS[t]).join(', ')],
-		['Active Tab', meta.activeTab],
+		['Selected Types', meta.selectedTypes.length > 0 ? meta.selectedTypes.join(', ') : '(all)'],
 		['Search Query', meta.filters.searchQuery || '(none)'],
 		[
 			'Filtered Repos',
