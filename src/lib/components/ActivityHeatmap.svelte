@@ -16,9 +16,7 @@
 
 	const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
-	// Tooltip state
 	let tooltip = $state<{ text: string; x: number; y: number } | null>(null);
-	let containerRef = $state<HTMLDivElement | null>(null);
 
 	function getColor(count: number, maxCount: number): string {
 		if (count === 0) return 'var(--heatmap-0)';
@@ -29,72 +27,81 @@
 		return 'var(--heatmap-4)';
 	}
 
-	interface WeekColumn {
-		weekIndex: number;
-		days: { entry: HeatmapEntry; dayOfWeek: number }[];
+	// Compute grid position for each cell and month labels from the flat entries list.
+	// Each entry gets a column (week index) and row (day of week) based on the
+	// number of days since the start date's week-start (Sunday).
+	interface Cell {
+		entry: HeatmapEntry;
+		col: number;
+		row: number;
 	}
 
-	let weeks = $derived.by(() => {
-		if (entries.length === 0) return [];
+	let grid = $derived.by(() => {
+		if (entries.length === 0)
+			return {
+				cells: [] as Cell[],
+				monthLabels: [] as { text: string; col: number }[],
+				totalCols: 0
+			};
 
-		const cols: WeekColumn[] = [];
-		let currentWeek: WeekColumn = { weekIndex: 0, days: [] };
+		// Find the Sunday on or before the first entry
+		const firstDate = new Date(entries[0].date + 'T00:00:00');
+		const startTime = firstDate.getTime() - firstDate.getDay() * 86400000;
+		const msPerDay = 86400000;
 
+		const cells: Cell[] = [];
+		const monthLabels: { text: string; col: number }[] = [];
+		let lastMonth = -1;
+
+		// First pass: collect all month boundaries
+		const rawLabels: { text: string; col: number }[] = [];
 		for (const entry of entries) {
 			const date = new Date(entry.date + 'T00:00:00');
-			const dayOfWeek = date.getDay(); // 0=Sun, 6=Sat
+			const daysSinceStart = Math.round((date.getTime() - startTime) / msPerDay);
+			const col = Math.floor(daysSinceStart / 7);
+			const row = daysSinceStart % 7;
 
-			if (dayOfWeek === 0 && currentWeek.days.length > 0) {
-				cols.push(currentWeek);
-				currentWeek = { weekIndex: cols.length, days: [] };
+			cells.push({ entry, col, row });
+
+			const month = date.getMonth();
+			if (month !== lastMonth) {
+				rawLabels.push({
+					text: date.toLocaleDateString('en-US', { month: 'short' }),
+					col
+				});
+				lastMonth = month;
 			}
-
-			currentWeek.days.push({ entry, dayOfWeek });
 		}
 
-		if (currentWeek.days.length > 0) {
-			cols.push(currentWeek);
+		// Second pass: remove labels that are too close, preferring the later one
+		// (i.e., if Dec col=0 and Jan col=1, drop Dec and keep Jan)
+		for (let i = 0; i < rawLabels.length - 1; i++) {
+			if (rawLabels[i + 1].col - rawLabels[i].col < 3) {
+				// Skip the earlier label
+				continue;
+			}
+			monthLabels.push(rawLabels[i]);
+		}
+		// Always include the last label
+		if (rawLabels.length > 0) {
+			monthLabels.push(rawLabels[rawLabels.length - 1]);
 		}
 
-		return cols;
+		const totalCols = cells.length > 0 ? cells[cells.length - 1].col + 1 : 0;
+		return { cells, monthLabels, totalCols };
 	});
 
 	let maxCount = $derived(Math.max(1, ...entries.map((e) => e.count)));
-
-	let monthLabels = $derived.by(() => {
-		const labels: { text: string; weekIndex: number }[] = [];
-		let lastMonth = -1;
-
-		for (const week of weeks) {
-			for (const day of week.days) {
-				const date = new Date(day.entry.date + 'T00:00:00');
-				const month = date.getMonth();
-				if (month !== lastMonth) {
-					labels.push({
-						text: date.toLocaleDateString('en-US', { month: 'short' }),
-						weekIndex: week.weekIndex
-					});
-					lastMonth = month;
-				}
-				break; // Only check first day of each week
-			}
-		}
-
-		return labels;
-	});
-
-	let svgWidth = $derived(dayLabelWidth + weeks.length * cellStep + cellGap);
+	let svgWidth = $derived(dayLabelWidth + grid.totalCols * cellStep + cellGap);
 	let svgHeight = $derived(monthLabelHeight + 7 * cellStep + cellGap);
 
 	function showTooltip(entry: HeatmapEntry, event: MouseEvent) {
-		if (!containerRef) return;
-		const rect = containerRef.getBoundingClientRect();
 		const count = entry.count;
 		const label = count === 0 ? 'No activity' : `${count} activit${count === 1 ? 'y' : 'ies'}`;
 		tooltip = {
 			text: `${label} on ${formatDisplayDate(entry.date)}`,
-			x: event.clientX - rect.left,
-			y: event.clientY - rect.top - 8
+			x: event.clientX,
+			y: event.clientY - 8
 		};
 	}
 
@@ -103,46 +110,35 @@
 	}
 </script>
 
-<div class="heatmap-container" bind:this={containerRef}>
+<div class="heatmap-container">
 	<svg width={svgWidth} height={svgHeight}>
-		<!-- Month labels -->
-		{#each monthLabels as label (label.weekIndex)}
-			<text x={dayLabelWidth + label.weekIndex * cellStep} y={12} class="label month-label">
+		{#each grid.monthLabels as label (label.col)}
+			<text x={dayLabelWidth + label.col * cellStep} y={12} class="label month-label">
 				{label.text}
 			</text>
 		{/each}
 
-		<!-- Day labels -->
 		{#each dayLabels as label, i (i)}
 			<text x={0} y={monthLabelHeight + i * cellStep + cellSize - 2} class="label day-label">
 				{label}
 			</text>
 		{/each}
 
-		<!-- Cells -->
-		{#each weeks as week (week.weekIndex)}
-			{#each week.days as day (day.entry.date)}
-				<rect
-					x={dayLabelWidth + week.weekIndex * cellStep}
-					y={monthLabelHeight + day.dayOfWeek * cellStep}
-					width={cellSize}
-					height={cellSize}
-					rx="2"
-					fill={getColor(day.entry.count, maxCount)}
-					onmouseenter={(e) => showTooltip(day.entry, e)}
-					onmouseleave={hideTooltip}
-					role="img"
-					aria-label={`${day.entry.count} activit${day.entry.count === 1 ? 'y' : 'ies'} on ${formatDisplayDate(day.entry.date)}`}
-				/>
-			{/each}
+		{#each grid.cells as cell (cell.entry.date)}
+			<rect
+				x={dayLabelWidth + cell.col * cellStep}
+				y={monthLabelHeight + cell.row * cellStep}
+				width={cellSize}
+				height={cellSize}
+				rx="2"
+				fill={getColor(cell.entry.count, maxCount)}
+				onmouseenter={(e) => showTooltip(cell.entry, e)}
+				onmouseleave={hideTooltip}
+				role="img"
+				aria-label={`${cell.entry.count} activit${cell.entry.count === 1 ? 'y' : 'ies'} on ${formatDisplayDate(cell.entry.date)}`}
+			/>
 		{/each}
 	</svg>
-
-	{#if tooltip}
-		<div class="tooltip" style="left: {tooltip.x}px; top: {tooltip.y}px;">
-			{tooltip.text}
-		</div>
-	{/if}
 
 	<div class="legend">
 		<span class="legend-label">Less</span>
@@ -155,10 +151,15 @@
 	</div>
 </div>
 
+{#if tooltip}
+	<div class="tooltip" style="left: {tooltip.x}px; top: {tooltip.y}px;">
+		{tooltip.text}
+	</div>
+{/if}
+
 <style>
 	.heatmap-container {
 		overflow-x: auto;
-		position: relative;
 	}
 
 	.label {
@@ -175,7 +176,7 @@
 	}
 
 	.tooltip {
-		position: absolute;
+		position: fixed;
 		pointer-events: none;
 		transform: translate(-50%, -100%);
 		background: var(--color-text);

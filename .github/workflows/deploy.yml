@@ -1,10 +1,11 @@
-name: CI
+name: Deploy
 
 on:
-  pull_request:
+  push:
+    branches: [main]
 
 jobs:
-  check:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -20,14 +21,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Checks
-        run: pnpm run checks
-
-      - name: Test
-        run: pnpm run test
-
       - name: Build
         run: pnpm run build
+
+      - name: Deploy to Cloudflare Workers
+        run: pnpm exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -13,6 +13,7 @@
 	let loading = $state(false);
 	let fetchedUser = $state('');
 	let fetchedPat = $state('');
+	let highlightIndex = $state(-1);
 
 	async function loadSuggestions() {
 		if (!username || (username === fetchedUser && (pat || '') === fetchedPat)) return;
@@ -39,6 +40,7 @@
 			repos = [...repos, trimmed];
 		}
 		inputValue = '';
+		highlightIndex = -1;
 		showSuggestions = false;
 	}
 
@@ -47,13 +49,66 @@
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' && inputValue.trim()) {
+		const visible = showSuggestions && filteredSuggestions.length > 0;
+
+		if (e.key === 'ArrowDown') {
 			e.preventDefault();
-			addRepo(inputValue);
+			if (!visible) {
+				showSuggestions = true;
+				highlightIndex = 0;
+			} else {
+				highlightIndex = Math.min(highlightIndex + 1, filteredSuggestions.length - 1);
+			}
+			scrollToHighlighted();
+			return;
 		}
+
+		if (e.key === 'ArrowUp') {
+			e.preventDefault();
+			if (visible) {
+				highlightIndex = Math.max(highlightIndex - 1, 0);
+				scrollToHighlighted();
+			}
+			return;
+		}
+
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			if (visible && highlightIndex >= 0 && highlightIndex < filteredSuggestions.length) {
+				addRepo(filteredSuggestions[highlightIndex]);
+			} else if (inputValue.trim()) {
+				addRepo(inputValue);
+			}
+			return;
+		}
+
+		if (e.key === 'Escape') {
+			showSuggestions = false;
+			highlightIndex = -1;
+			return;
+		}
+
+		if (e.key === 'Tab' && visible && highlightIndex >= 0) {
+			e.preventDefault();
+			addRepo(filteredSuggestions[highlightIndex]);
+			return;
+		}
+
 		if (e.key === 'Backspace' && !inputValue && repos.length > 0) {
 			repos = repos.slice(0, -1);
 		}
+	}
+
+	function scrollToHighlighted() {
+		requestAnimationFrame(() => {
+			const el = document.querySelector('.suggestion-item.highlighted');
+			el?.scrollIntoView({ block: 'nearest' });
+		});
+	}
+
+	function handleInput() {
+		showSuggestions = true;
+		highlightIndex = -1;
 	}
 
 	function handleFocus() {
@@ -61,11 +116,26 @@
 		showSuggestions = true;
 	}
 
+	function handleBlur() {
+		// Delay so mousedown on suggestion fires before dropdown closes
+		setTimeout(() => {
+			showSuggestions = false;
+			highlightIndex = -1;
+		}, 200);
+	}
+
 	let filteredSuggestions = $derived(
 		suggestions
 			.filter((s) => !repos.includes(s))
 			.filter((s) => !inputValue || s.toLowerCase().includes(inputValue.toLowerCase()))
+			.slice(0, 20)
 	);
+
+	// Reset highlight when filter changes
+	$effect(() => {
+		void filteredSuggestions;
+		highlightIndex = -1;
+	});
 </script>
 
 <div class="repo-input">
@@ -79,25 +149,39 @@
 		<input
 			type="text"
 			bind:value={inputValue}
+			oninput={handleInput}
 			onkeydown={handleKeydown}
 			onfocus={handleFocus}
-			onblur={() => setTimeout(() => (showSuggestions = false), 200)}
+			onblur={handleBlur}
 			placeholder={repos.length === 0 ? 'owner/repo' : 'Add another...'}
+			role="combobox"
+			aria-expanded={showSuggestions && filteredSuggestions.length > 0}
+			aria-autocomplete="list"
+			aria-controls="repo-suggestions"
+			aria-activedescendant={highlightIndex >= 0 ? `repo-option-${highlightIndex}` : undefined}
 		/>
 	</div>
 
 	{#if showSuggestions && (filteredSuggestions.length > 0 || loading)}
-		<div class="suggestions">
+		<ul class="suggestions" id="repo-suggestions" role="listbox">
 			{#if loading}
-				<div class="suggestion-item loading">Loading repos...</div>
+				<li class="suggestion-item loading">Loading repos...</li>
 			{:else}
-				{#each filteredSuggestions.slice(0, 20) as suggestion (suggestion)}
-					<button type="button" class="suggestion-item" onmousedown={() => addRepo(suggestion)}>
+				{#each filteredSuggestions as suggestion, i (suggestion)}
+					<li
+						id="repo-option-{i}"
+						class="suggestion-item"
+						class:highlighted={i === highlightIndex}
+						role="option"
+						aria-selected={i === highlightIndex}
+						onmousedown={() => addRepo(suggestion)}
+						onmouseenter={() => (highlightIndex = i)}
+					>
 						{suggestion}
-					</button>
+					</li>
 				{/each}
 			{/if}
-		</div>
+		</ul>
 	{/if}
 </div>
 
@@ -171,6 +255,8 @@
 		overflow-y: auto;
 		z-index: 10;
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+		list-style: none;
+		padding: 0;
 	}
 
 	.suggestion-item {
@@ -183,9 +269,11 @@
 		font-family: var(--font-mono);
 		font-size: 13px;
 		color: var(--color-text);
+		cursor: pointer;
 	}
 
-	.suggestion-item:hover {
+	.suggestion-item:hover,
+	.suggestion-item.highlighted {
 		background: var(--color-bg-secondary);
 	}
 
@@ -193,5 +281,6 @@
 		color: var(--color-text-secondary);
 		font-style: italic;
 		font-family: var(--font-sans);
+		cursor: default;
 	}
 </style>
