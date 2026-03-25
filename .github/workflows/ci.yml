@@ -23,11 +23,8 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Lint
-        run: pnpm run lint
-
-      - name: Type check
-        run: pnpm run check
+      - name: Checks
+        run: pnpm run checks
 
       - name: Test
         run: pnpm run test

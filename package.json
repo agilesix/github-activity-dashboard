@@ -8,13 +8,14 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-		"lint": "prettier --check . && eslint .",
-		"format": "prettier --write .",
+		"types:check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"types:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"lint": "eslint . && prettier --check .",
+		"format": "prettier --write . && eslint --fix .",
+		"format:check": "prettier --check .",
 		"test:unit": "vitest",
 		"test": "pnpm run test:unit --run",
-		"format:check": "prettier --check ."
+		"checks": "pnpm run types:check && pnpm run lint"
 	},
 	"devDependencies": {
 		"@cloudflare/workers-types": "^4.20260317.1",
