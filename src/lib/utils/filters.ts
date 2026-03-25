@@ -21,7 +21,8 @@ export function filterByDateRange(
 
 export function filterByRepos(items: ActivityItem[], repos: string[]): ActivityItem[] {
 	if (repos.length === 0) return items;
-	return items.filter((i) => repos.includes(i.repo));
+	const lower = repos.map((r) => r.toLowerCase());
+	return items.filter((i) => lower.includes(i.repo.toLowerCase()));
 }
 
 export function filterByLabels(items: ActivityItem[], labels: string[]): ActivityItem[] {

@@ -79,6 +79,12 @@ describe('filterByRepos', () => {
 	it('returns empty for no match', () => {
 		expect(filterByRepos(items, ['org/missing'])).toHaveLength(0);
 	});
+
+	it('matches case-insensitively', () => {
+		const result = filterByRepos(items, ['Org/Alpha']);
+		expect(result).toHaveLength(1);
+		expect(result[0].id).toBe('1');
+	});
 });
 
 describe('filterByLabels', () => {
