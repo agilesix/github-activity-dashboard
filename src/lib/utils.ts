@@ -108,14 +108,14 @@ export function buildHeatmapData(items: ActivityItem[], from: string, to: string
 		counts.set(day, (counts.get(day) || 0) + 1);
 	}
 
-	// Fill in all days in the range
+	// Fill in all days in the range using UTC to avoid DST issues
 	const entries: HeatmapEntry[] = [];
-	const current = new Date(from);
-	const end = new Date(to);
+	const current = new Date(from + 'T00:00:00Z');
+	const end = new Date(to + 'T00:00:00Z');
 	while (current <= end) {
-		const dateStr = formatDate(current);
+		const dateStr = current.toISOString().split('T')[0];
 		entries.push({ date: dateStr, count: counts.get(dateStr) || 0 });
-		current.setDate(current.getDate() + 1);
+		current.setUTCDate(current.getUTCDate() + 1);
 	}
 
 	return entries;
