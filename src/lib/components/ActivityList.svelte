@@ -8,6 +8,13 @@
 	} from '$lib/types';
 	import { formatDisplayDate } from '$lib/utils';
 	import StateIcon from './StateIcon.svelte';
+	import {
+		effectiveDateFilter,
+		filterFrom,
+		filterTo,
+		setDateRange,
+		clearDateFilter
+	} from '$lib/stores/date-filter';
 
 	function getTypeLabels(labels: string[] | undefined): string[] {
 		return (labels ?? []).filter((l) => isTypeLabel(l));
@@ -32,6 +39,32 @@
 	let selectedLabels = $state<string[]>([]);
 	let currentPage = $state(1);
 
+	// Date filter from shared store
+	let dateFilter = $state<{ from: string | null; to: string | null } | null>(null);
+	let dateFilterFrom = $state('');
+	let dateFilterTo = $state('');
+
+	$effect(() => {
+		const unsub = effectiveDateFilter.subscribe((v) => {
+			dateFilter = v;
+		});
+		return unsub;
+	});
+
+	$effect(() => {
+		const unsub = filterFrom.subscribe((v) => {
+			dateFilterFrom = v ?? '';
+		});
+		return unsub;
+	});
+
+	$effect(() => {
+		const unsub = filterTo.subscribe((v) => {
+			dateFilterTo = v ?? '';
+		});
+		return unsub;
+	});
+
 	// Collect all unique labels from items
 	let allLabels = $derived(
 		[...new Set(items.flatMap((i) => i.labels ?? []))].filter(Boolean).sort()
@@ -40,6 +73,16 @@
 	// Filtered items
 	let filteredItems = $derived.by(() => {
 		let result = items;
+
+		// Date filter (from heatmap click or date range inputs)
+		if (dateFilter) {
+			result = result.filter((i) => {
+				const day = i.date.split('T')[0];
+				if (dateFilter!.from && day < dateFilter!.from) return false;
+				if (dateFilter!.to && day > dateFilter!.to) return false;
+				return true;
+			});
+		}
 
 		if (selectedRepos.length > 0) {
 			result = result.filter((i) => selectedRepos.includes(i.repo));
@@ -103,6 +146,7 @@
 		void searchQuery;
 		void selectedRepos;
 		void selectedLabels;
+		void dateFilter;
 		void items;
 		currentPage = 1;
 		collapsedSections = {};
@@ -125,10 +169,14 @@
 		searchQuery = '';
 		selectedRepos = [];
 		selectedLabels = [];
+		clearDateFilter();
 	}
 
 	let hasActiveFilters = $derived(
-		searchQuery.trim() !== '' || selectedRepos.length > 0 || selectedLabels.length > 0
+		searchQuery.trim() !== '' ||
+			selectedRepos.length > 0 ||
+			selectedLabels.length > 0 ||
+			dateFilter !== null
 	);
 
 	// Section collapse state
@@ -210,6 +258,31 @@
 					</div>
 				</div>
 			{/if}
+
+			<div class="filter-group">
+				<span class="filter-label">Date</span>
+				<div class="date-filter-inputs">
+					<input
+						type="date"
+						value={dateFilterFrom}
+						oninput={(e) => {
+							const v = (e.target as HTMLInputElement).value;
+							setDateRange(v || null, dateFilterTo || null);
+						}}
+						aria-label="Filter from date"
+					/>
+					<span class="date-sep">to</span>
+					<input
+						type="date"
+						value={dateFilterTo}
+						oninput={(e) => {
+							const v = (e.target as HTMLInputElement).value;
+							setDateRange(dateFilterFrom || null, v || null);
+						}}
+						aria-label="Filter to date"
+					/>
+				</div>
+			</div>
 		</div>
 
 		{#if hasActiveFilters}
@@ -423,6 +496,26 @@
 		font-size: 12px;
 		padding: 0;
 		text-decoration: underline;
+	}
+
+	/* Date filter */
+	.date-filter-inputs {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+
+	.date-filter-inputs input[type='date'] {
+		padding: 3px 6px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		font-size: 12px;
+	}
+
+	.date-sep {
+		font-size: 12px;
+		color: var(--color-text-secondary);
 	}
 
 	/* Category sections */

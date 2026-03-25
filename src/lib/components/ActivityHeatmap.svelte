@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { HeatmapEntry } from '$lib/types';
 	import { formatDisplayDate } from '$lib/utils';
+	import { filterFrom, filterTo, setDateRange, clearDateFilter } from '$lib/stores/date-filter';
 
 	interface Props {
 		entries: HeatmapEntry[];
@@ -17,6 +18,22 @@
 	const dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
 
 	let tooltip = $state<{ text: string; x: number; y: number } | null>(null);
+	let currentFrom = $state<string | null>(null);
+	let currentTo = $state<string | null>(null);
+
+	$effect(() => {
+		const unsub = filterFrom.subscribe((v) => {
+			currentFrom = v;
+		});
+		return unsub;
+	});
+
+	$effect(() => {
+		const unsub = filterTo.subscribe((v) => {
+			currentTo = v;
+		});
+		return unsub;
+	});
 
 	function getColor(count: number, maxCount: number): string {
 		if (count === 0) return 'var(--heatmap-0)';
@@ -108,6 +125,25 @@
 	function hideTooltip() {
 		tooltip = null;
 	}
+
+	let hasFilter = $derived(currentFrom !== null || currentTo !== null);
+
+	function isSelected(date: string): boolean {
+		if (!currentFrom && !currentTo) return false;
+		if (currentFrom && currentTo) return date >= currentFrom && date <= currentTo;
+		if (currentFrom) return date >= currentFrom;
+		if (currentTo) return date <= currentTo;
+		return false;
+	}
+
+	function handleCellClick(entry: HeatmapEntry) {
+		// Toggle off if clicking the same single-date filter
+		if (currentFrom === entry.date && currentTo === entry.date) {
+			clearDateFilter();
+		} else {
+			setDateRange(entry.date, entry.date);
+		}
+	}
 </script>
 
 <div class="heatmap-container">
@@ -132,10 +168,20 @@
 				height={cellSize}
 				rx="2"
 				fill={getColor(cell.entry.count, maxCount)}
+				opacity={hasFilter && !isSelected(cell.entry.date) ? 0.3 : 1}
 				onmouseenter={(e) => showTooltip(cell.entry, e)}
 				onmouseleave={hideTooltip}
-				role="img"
+				onclick={() => handleCellClick(cell.entry)}
+				role="button"
+				tabindex={0}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						handleCellClick(cell.entry);
+					}
+				}}
 				aria-label={`${cell.entry.count} activit${cell.entry.count === 1 ? 'y' : 'ies'} on ${formatDisplayDate(cell.entry.date)}`}
+				aria-pressed={isSelected(cell.entry.date)}
 			/>
 		{/each}
 	</svg>
