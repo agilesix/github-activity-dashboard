@@ -45,6 +45,7 @@
 	"dependencies": {
 		"@sveltejs/adapter-cloudflare": "^7.2.8",
 		"nanostores": "^1.2.0",
-		"octokit": "^5.0.5"
+		"octokit": "^5.0.5",
+		"xlsx": "^0.18.5"
 	}
 }
