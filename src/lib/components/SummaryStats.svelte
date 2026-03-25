@@ -48,6 +48,8 @@
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 		background: var(--color-bg-secondary);
+		display: flex;
+		flex-direction: column;
 	}
 
 	.stat-value {
@@ -64,5 +66,6 @@
 	.stat-label {
 		font-size: 12px;
 		color: var(--color-text-secondary);
+		margin-top: auto;
 	}
 </style>
